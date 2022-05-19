@@ -7,7 +7,7 @@ More specifically you can find, implemented within it, some variants of (S)GD, a
 * PCNSGD+O
 * SGD+O
 * PCNSGD+R
-In addition, vanilla versions of (S)GD are present.
+In addition, vanilla versions of (S)GD are present.\
 The code is written in python and the reference library, used internally, to implement the networks and work with them is Pytorch.
 
 ##Structure
