@@ -60,7 +60,8 @@ The code starts with an initial block, where some general parameters are defined
 to more easily monitor the runs and their results the code automatically saves logs of relevant metrics on some server which can then be accessed at any time to check the status of the simulation.
 Specifically, simulation results will be available in:\
 * Tensorboard: no logging is required for such a server. for more information on using tensorboard see [How to use TensorBoard with PyTorch](https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html) 
-* Wandb: you can access the server by creating a new account or through accounts from other portals (github, google,...)
+* Wandb: you can access the server by creating a new account or through accounts from other portals (github, google,...). For more details see, for example 
+[W&B-Getting Started with PyTorch ](https://docs.wandb.ai/guides/integrations/pytorch) [Intro to Pytorch with W&B ](https://wandb.ai/site/articles/intro-to-pytorch-with-wandb) 
 
 ### Per class DataLoader.
 In our experiments, it is essential to monitor individual class performance. Not only that; some of the algorithms also require calculation of the gradient associated with each class. To facilitate this division we define a dataloader associated with each class. We associate with the latter a batchsize parameter set by the imbalance ratio (and by the oversampling strategy, if any, operated by the specific algorithm). To clarify this point, let us consider a practical example. \
