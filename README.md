@@ -1,5 +1,5 @@
-#Introduction
-##Content (in a nutshell)
+# Introduction
+## Content (in a nutshell)
 The goal of the repo is to provide codes needed to perform simulations on DNNs of some descent-based algorithms.
 More specifically you can find, implemented within it, some variants of (S)GD, and, in particular:
 * PCNGD
@@ -10,7 +10,7 @@ More specifically you can find, implemented within it, some variants of (S)GD, a
 In addition, vanilla versions of (S)GD are present.\
 The code is written in python and the reference library, used internally, to implement the networks and work with them is Pytorch.
 
-##Structure
+## Structure
 
 In order to ensure clearer readability the code is divided into 2 scripts: \
 * MainBlock.py: code on which the simulation runs; it defines the framework of the program and the flow of executed commands.
@@ -20,7 +20,7 @@ The program is launched by a ,command within the bash script "PythonRunManager.s
 `i1` and `i2` are 2 integer values such that `i1`<`i2`. With this command we begin the serial execution of `i2`-`i2`+1 replicas of the desired simulation. Specifically, each replica is identified by a numeric index between `i1` and `i2`.
 The data for each replica, associated with a given set of parameters, are loaded, during the course of the simulation, into a folder that has the index of the replica in its name.
 
-###Inteaction between MainBlock.py and CodeBlocks.py
+### Inteaction between MainBlock.py and CodeBlocks.py
 
 The methods in "CodeBlocks.py", called by "MainBlock.py" during the simulation, are enclosed in classes.
 The simulation starts by setting and defining some essential variables. That done, the DNN is generated as an instance of a class, through the command:\
@@ -38,8 +38,8 @@ Instead if you perform a class composition as done for NetVariables you can give
 _________________________________________
 
 
-#Running Pipeline
-##Bash script
+# Running Pipeline
+## Bash script
 
 As mentioned, the simulation is started through a bash script ("PythonRunManager.sh"). Within that script some parameters are set. Specifically:
 * **FolderName** : is the name of the folder that will contain all the results of the execution.
@@ -54,9 +54,9 @@ For each of the above parameters, it is also possible to select more than one va
 `python3 MainBlock.py $i $FolderName $Dataset $Architecture $LR $BS $GF $DP` \
 The `MainBlock.py` script is thus called.
 
-##MainBlock.py
+## MainBlock.py
 The code starts with an initial block, where some general parameters are defined (number of epochs, any changes on dataset composition, algorithm to be used, seed initialization, ..). To facilitate the connection with CodeBlocks.py we define a `params` dict where we save all the parameters that we want to be able to access also from "CodeBlocks.py". The network instance is then defined, as explained above, and the program is then started. 
-###Logging on server
+### Logging on server
 to more easily monitor the runs and their results the code automatically saves logs of relevant metrics on some server which can then be accessed at any time to check the status of the simulation.
 Specifically, simulation results will be available in:\
 * Tensorboard: no logging is required for such a server. for more information on using tensorboard see [How to use TensorBoard with PyTorch](https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html) 
