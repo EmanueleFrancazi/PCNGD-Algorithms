@@ -56,6 +56,23 @@ The `MainBlock.py` script is thus called.
 
 ## MainBlock.py
 The code starts with an initial block, where some general parameters are defined (number of epochs, any changes on dataset composition, algorithm to be used, seed initialization, ..). To facilitate the connection with CodeBlocks.py we define a `params` dict where we save all the parameters that we want to be able to access also from "CodeBlocks.py". The network instance is then defined, as explained above, and the program is then started. 
+
+### Reproducibility and Initialization: Random seed
+Immediately after importing the modules into MainBlock.py 
+we proceed to initialize the random seeds. Note that initialization must be performed on all libraries that use pseudo-random number generators (in our case numpy, random, torch). 
+The operation of fixing the seed for a given simulation is a delicate operation since a wrong choice could create an undesirable correlation between random variables generated in independent simulations. 
+The following two lines fix the seed: 
+
+```
+    t = int( time.time() * 1000.0 )
+    seed = ((t & 0xff0000) >> 24) + ((t & 0x00ff0000) >> 8) + ((t & 0x0000ff00) << 8) + ((t & 0x0000ff) << 24)   
+```
+Python time method `time()` returns the time as a floating point number expressed in seconds since the epoch, in UTC. This value is then amplified. Finally, the bit order is reversed so as to reduce the dependence on the least significant bits, further increasing the distance between similar values (more details are given directly in the code, as a comment, immediately after initialization).
+The resulting value is then used as a seed for initialization.
+The seed is then saved within a file and printed out, so that the simulation can be easily reproduced if required.
+
+
+
 ### Logging on server
 to more easily monitor the runs and their results the code automatically saves logs of relevant metrics on some server which can then be accessed at any time to check the status of the simulation.
 Specifically, simulation results will be available in:\
