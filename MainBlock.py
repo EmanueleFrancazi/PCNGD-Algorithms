@@ -215,16 +215,16 @@ ValidMode = 'Test' #('Valid' or 'Test') #can be valid or test and selsct differe
 IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
 
 
-Dynamic = 'PROJ_NORM_SGD' #algorithm selection 
+Dynamic = 'PCNSGD+R' #algorithm selection 
 
 FFCV_Mode = 'OFF' #this flag trigger the using of ffcv library to speed up the simulations (WARNING: feature not implemented yet, ignore it for now)
 
 SetFlag = 'Train' #this flag specify which dataset we forward; can be 'Train', 'Test' or 'Valid' (do not change it, is automatically updated over the course of the simulation. the value set in this line constitutes the initial initialization)
 
 #we specify throught the following dict wich algorithms perform resampling and which not
-OversamplingMode = {'SGD': 'OFF', 'BISECTION': 'OFF', 'PCNSGD': 'OFF', 'OVERS_PCNSGD': 'ON', 'OVERS_SGD': 'ON', 'PROJ_NORM_SGD': 'OFF', 'GD':'OFF', 'PCNGD': 'OFF'}
+OversamplingMode = {'SGD': 'OFF', 'BISECTION': 'OFF', 'PCNSGD': 'OFF', 'PCNSGD+O': 'ON', 'SGD+O': 'ON', 'PCNSGD+R': 'OFF', 'GD':'OFF', 'PCNGD': 'OFF'}
 #we specify throught the following dict wich algorithms is stochastic (forward each time only a part of the dataset (batch)) and which not
-StochasticMode = {'SGD': 'ON', 'BISECTION': 'ON', 'PCNSGD': 'ON', 'OVERS_PCNSGD': 'ON', 'OVERS_SGD': 'ON', 'PROJ_NORM_SGD': 'ON', 'GD':'OFF', 'PCNGD': 'OFF'}
+StochasticMode = {'SGD': 'ON', 'BISECTION': 'ON', 'PCNSGD': 'ON', 'PCNSGD+O': 'ON', 'SGD+O': 'ON', 'PCNSGD+R': 'ON', 'GD':'OFF', 'PCNGD': 'OFF'}
 
 #class selection variables
 #TIPS FOR CLASS MAPPINGS (TO MAKE THINGS EASIER AND CLEARER)
@@ -420,7 +420,7 @@ TB_path = 'TensorBoard'+'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_s
 
 
     
-ProjName = 'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_Proj_Norm_SGD'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
+ProjName = 'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
 GroupName = '/GaussInitAlg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode)#'/~Alg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode) #the group identifies the simulations we would like to average togheter for the representation
 RunName = '/Sample' + str(args.SampleIndex)#'/Sample' + str(args.SampleIndex)  #the run name identify the single run belonging to the above broad categories
 
@@ -1552,12 +1552,12 @@ if (Dynamic=='PCNSGD'):
 
 
 
-#%%OVERS_PCNSGD
+#%%PCNSGD+O
 # THIS IS A VARIATION OF PCNSGD IN WHICH THE ELEMENTS OF THE MINORITY CLASS ARE FIXED (WE EXTRACT ALWAYS THE SAME)     
 #the difference with PCNSGD_MIN_FORZEN is that this implementation follow exactly pcnsgd (single sample forward)
 #note that the code below works for the joint combination of 2 separated dataset (2 dataloader); 
 #you can choose one of the two as a single repeated batch or as a dataset with more batches
-if (Dynamic=='OVERS_PCNSGD'):
+if (Dynamic=='PCNSGD+O'):
     #%%% Times setting
     Times = CodeBlocks.Define(params, n_epochs, NSteps, len(NetInstance.TrainDL['Class0']), StartIterationCounter, PreviousTimes).StocasticTimes()
     print("TIMES ARE: ", Times, flush=True, file = info)
@@ -1921,13 +1921,13 @@ if (Dynamic=='OVERS_PCNSGD'):
 
 
 
-#%%OVERS_SGD
+#%%SGD+O
 
 # THIS IS A VARIATION OF PCNSGD IN WHICH THE ELEMENTS OF THE MINORITY CLASS ARE FIXED (WE EXTRACT ALWAYS THE SAME)     
 #the difference with PCNSGD_MIN_FORZEN is that this implementation follow exactly pcnsgd (single sample forward)
 #note that the code below works for the joint combination of 2 separated dataset (2 dataloader); 
 #you can choose one of the two as a single repeated batch or as a dataset with more batches
-if (Dynamic=='OVERS_SGD'):
+if (Dynamic=='SGD+O'):
     #%%% Times setting
     Times = CodeBlocks.Define(params, n_epochs, NSteps, len(NetInstance.TrainDL['Class0']), StartIterationCounter, PreviousTimes).StocasticTimes()
     print("TIMES ARE: ", Times, flush=True, file = info)
@@ -2289,8 +2289,8 @@ if (Dynamic=='OVERS_SGD'):
 
 
 
-#%%PROJ_NORM_SGD
-if (Dynamic=='PROJ_NORM_SGD'):
+#%%PCNSGD+R
+if (Dynamic=='PCNSGD+R'):
     #%%% Times setting
     Times = CodeBlocks.Define(params, n_epochs, NSteps, len(NetInstance.TrainDL['Class0']), StartIterationCounter, PreviousTimes).StocasticTimes()
     print("TIMES ARE: ", Times, flush=True, file = info)

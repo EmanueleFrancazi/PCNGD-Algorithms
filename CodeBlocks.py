@@ -3487,7 +3487,7 @@ class Bricks:
                        'Check/Rescaled_Steps': (TimeVec[Comp]*self.params['batch_size']/self.params['learning_rate']),
                        'Performance_measures/True_Steps_+_1': TimeVec[Comp]+1})
     
-            if(all(self.GradCopy) or self.params['Dynamic']=='Proj_Norm_SGD'): #if we are in the projection normalization mode we calculate with the whole dataset, so we are granted to have all the component 
+            if(all(self.GradCopy) or self.params['Dynamic']=='PCNSGD+R'): #if we are in the projection normalization mode we calculate with the whole dataset, so we are granted to have all the component 
                 
                 for k in range(0, self.model.num_classes):
                     wandb.log({'GradientAngles/Gradient_Single_batch_Norm_of_Classes_{}'.format(k): (self.model.StepGradientClassNorm[k][Comp+1] ),
@@ -3540,7 +3540,7 @@ class Bricks:
                        'Check/Rescaled_Steps': (TimeVec[Comp]*self.params['batch_size']/self.params['learning_rate']),
                        'Performance_measures/True_Steps_+_1': TimeVec[Comp]+1})
     
-            if(all(self.GradCopy) or self.params['Dynamic']=='Proj_Norm_SGD'): #if we are in the projection normalization mode we calculate with the whole dataset, so we are granted to have all the component 
+            if(all(self.GradCopy) or self.params['Dynamic']=='PCNSGD+R'): #if we are in the projection normalization mode we calculate with the whole dataset, so we are granted to have all the component 
                 
                 for k in range(0, self.model.num_classes):
                     wandb.log({'GradientAngles/Gradient_Single_batch_Norm_of_Classes_{}'.format(k): (self.model.StepGradientClassNorm[k][Comp+1] ),
