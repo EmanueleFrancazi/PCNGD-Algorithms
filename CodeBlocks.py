@@ -13,6 +13,8 @@ from torchvision import datasets
 import torchvision.transforms as transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 import torch.backends.cudnn as cudnn
+
+from PIL import Image
 #import tensorboard
 from torch.utils.tensorboard import SummaryWriter
 
@@ -28,6 +30,18 @@ import torch.nn.functional as F
 
 import psutil
 from inspect import currentframe
+
+
+
+#classes for INaturalist datset customized
+import os.path
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
+
+from torchvision.datasets.utils import download_and_extract_archive, verify_str_arg
+from torchvision.datasets.vision import VisionDataset
+
+import operator
+
 
 #Whatever you want to do with shells like running an application, copying files etc., you can do with subprocess. It has run function which does it for you!
 import subprocess 
@@ -88,12 +102,14 @@ class DatasetMeanStd:
         self.ClassesList = ClassesDict.keys()
         self.transform = transforms.ToTensor()
         if(self.DatasetName=='CIFAR10'):
-            self.train_data = datasets.CIFAR10(root = 'data', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.CIFAR10(root = 'data', train = False, download = True, transform = self.transform)
+            self.train_data = datasets.CIFAR10(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR10(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)
         elif(self.DatasetName=='MNIST'):
-            self.train_data = datasets.MNIST(root = 'data', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.MNIST(root = 'data', train = False, download = True, transform = self.transform) 
-            
+            self.train_data = datasets.MNIST(root = 'data_nobackup', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.MNIST(root = 'data_nobackup', train = False, download = True, transform = self.transform) 
+        elif(self.DatasetName=='CIFAR100'):
+            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)
     #TODO: include also the option to calculate mean and std for test sets and MNIST dataset
     
     def Mean(self):
@@ -109,6 +125,16 @@ class DatasetMeanStd:
         
         
         if (self.DatasetName == 'CIFAR10'):
+            imgs = [item[0] for item in self.train_data if item[1] in self.ClassesList]  # item[0] and item[1] are image and its label
+            imgs = torch.stack(imgs, dim=0).numpy()
+            
+            # calculate mean over each channel (r,g,b)
+            mean_r = imgs[:,0,:,:].mean()
+            mean_g = imgs[:,1,:,:].mean()
+            mean_b = imgs[:,2,:,:].mean()   
+
+            return [mean_r, mean_g, mean_b]
+        elif (self.DatasetName == 'CIFAR100'):
             imgs = [item[0] for item in self.train_data if item[1] in self.ClassesList]  # item[0] and item[1] are image and its label
             imgs = torch.stack(imgs, dim=0).numpy()
             
@@ -140,7 +166,16 @@ class DatasetMeanStd:
             std_b = imgs[:,2,:,:].std()  
             
             return(std_r, std_g, std_b)
+        elif (self.DatasetName == 'CIFAR100'):
+            imgs = [item[0] for item in self.train_data] # item[0] and item[1] are image and its label
+            imgs = torch.stack(imgs, dim=0).numpy()
             
+            # calculate std over each channel (r,g,b)
+            std_r = imgs[:,0,:,:].std()
+            std_g = imgs[:,1,:,:].std()
+            std_b = imgs[:,2,:,:].std()  
+            
+            return(std_r, std_g, std_b)           
             
 
 
@@ -199,7 +234,7 @@ class Define:
         Times = np.rint(Times).astype(int)   
         
         if (self.params['StartMode']=='BEGIN'):
-            for ind in range(0,4): #put the initial times linear to store initial state
+            for ind in range(0,2): #put the initial times linear to store initial state
                 Times[ind] = ind+1    
         
         for steps in range (0, self.NSteps-1):
@@ -970,7 +1005,7 @@ class ConvNet(nn.Module, NetVariables, OrthoInit):
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=2, stride=2))
             self.fc = nn.Linear(7*7*32, self.num_classes)
-        elif  (self.params['Dataset']=='CIFAR10'):  
+        elif  (self.params['Dataset']=='CIFAR10' or self.params['Dataset']=='INATURALIST'):  
             self.layer1 = nn.Sequential(
                 nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, stride=1, padding=2),
                 nn.ReLU(),
@@ -1301,15 +1336,582 @@ class VGG_Custom_Dropout(nn.Module, NetVariables, OrthoInit):
 
 
 
+#below the class for the ResNet18 implementation
+#   https://github.com/liao2000/ML-Notebook/blob/main/ResNet/ResNet_PyTorch.ipynb
+
+#the only difference with the usual implementation is that BatchNorm2d are substituited by GroupNorm layer 
+#note: as for batchNorm also GroupNorm require an input greater of size 1 to calculate a meaningful mean and std 
+#(since we have torch.nn.AdaptiveAvgPool2d(1) in ResNet this translate in self.params['group_factor']>1)
+
+class ResBlock(nn.Module, NetVariables):
+    def __init__(self, in_channels, out_channels, params, downsample):
+        
+        self.params = params.copy()
+
+        nn.Module.__init__(self)
+        NetVariables.__init__(self, self.params)
+        
+        if downsample:
+            self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1)
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=2),
+                #nn.BatchNorm2d(out_channels)
+                nn.GroupNorm(int(out_channels/self.params['group_factor']), out_channels)
+            )
+        else:
+            self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            self.shortcut = nn.Sequential()
+
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        #self.bn1 = nn.BatchNorm2d(out_channels)
+        self.bn1 = nn.GroupNorm(int(out_channels/self.params['group_factor']), out_channels)
+        #self.bn2 = nn.BatchNorm2d(out_channels)
+        self.bn2 = nn.GroupNorm(int(out_channels/self.params['group_factor']), out_channels)
+
+    def forward(self, input):
+        shortcut = self.shortcut(input)
+        input = nn.ReLU()(self.bn1(self.conv1(input)))
+        input = nn.ReLU()(self.bn2(self.conv2(input)))
+        input = input + shortcut
+        return nn.ReLU()(input)
+
+
+
+class ResNet18(nn.Module, NetVariables):
+    def __init__(self, params, in_channels, resblock, outputs):
+
+        self.params = params.copy()
+        
+        nn.Module.__init__(self)
+        NetVariables.__init__(self, self.params)
+        
+        self.layer0 = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            #nn.BatchNorm2d(64),
+            nn.GroupNorm(int(64./self.params['group_factor']), 64),
+            nn.ReLU()
+        )
+
+        self.layer1 = nn.Sequential(
+            resblock(64, 64, self.params, downsample=False),
+            resblock(64, 64, self.params, downsample=False)
+        )
+
+        self.layer2 = nn.Sequential(
+            resblock(64, 128, self.params, downsample=True),
+            resblock(128, 128, self.params, downsample=False)
+        )
+
+        self.layer3 = nn.Sequential(
+            resblock(128, 256, self.params, downsample=True),
+            resblock(256, 256, self.params, downsample=False)
+        )
+
+
+        self.layer4 = nn.Sequential(
+            resblock(256, 512, self.params, downsample=True),
+            resblock(512, 512, self.params, downsample=False)
+        )
+
+        self.gap = torch.nn.AdaptiveAvgPool2d(1) #with this module you don't have to recompute the out dimension from ,convolutional layer varying the input size
+        self.fc = torch.nn.Linear(512, outputs)
+
+    def forward(self, input):
+        outs = {}
+
+        #print("la taglia all'inizio è: ", input.size())
+        input = self.layer0(input)
+        input = self.layer1(input)
+        input = self.layer2(input)
+        input = self.layer3(input)
+        input = self.layer4(input)
+        input = self.gap(input)
+        #print("la taglia prima del flatten è: ", input.size())
+        #input = torch.flatten(input) #flatten is not good with batch because it eliminate even the batch dimension
+        input = input.view(input.size(0), -1)
+        #print("la taglia prima del flatten è: ", input.size())
+        outs['l2'] = input
+        input = self.fc(input)
+        #print("il valore salvato è: ", input)
+        outs['out'] = input
+        
+        return outs
 
 
 
 
+#Imagenet-LT dataset
+class LT_Dataset(torch.utils.data.Dataset): #see for example https://github.com/naver-ai/cmo/blob/main/imbalance_data/lt_data.py
+
+    def __init__(self, root, txt, transform=None):
+        self.img_path = []
+        self.labels = []
+        self.transform = transform
+
+        with open(txt) as f:
+            for line in f:
+                self.img_path.append(os.path.join(root, line.split()[0]))
+                self.labels.append(int(line.split()[1]))
+        self.targets = self.labels  # Sampler needs to use targets
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, index):
+
+        path = self.img_path[index]
+        label = self.labels[index]
+
+        with open(path, 'rb') as f:
+            sample = Image.open(f).convert('RGB')
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        # return sample, label, path
+        return sample, label
+
+
+
+CATEGORIES_2021 = ["kingdom", "phylum", "class", "order", "family", "genus"]
+
+DATASET_URLS = {
+    "2017": "https://ml-inat-competition-datasets.s3.amazonaws.com/2017/train_val_images.tar.gz",
+    "2018": "https://ml-inat-competition-datasets.s3.amazonaws.com/2018/train_val2018.tar.gz",
+    "2019": "https://ml-inat-competition-datasets.s3.amazonaws.com/2019/train_val2019.tar.gz",
+    "2021_train": "https://ml-inat-competition-datasets.s3.amazonaws.com/2021/train.tar.gz",
+    "2021_train_mini": "https://ml-inat-competition-datasets.s3.amazonaws.com/2021/train_mini.tar.gz",
+    "2021_valid": "https://ml-inat-competition-datasets.s3.amazonaws.com/2021/val.tar.gz",
+}
+
+DATASET_MD5 = {
+    "2017": "7c784ea5e424efaec655bd392f87301f",
+    "2018": "b1c6952ce38f31868cc50ea72d066cc3",
+    "2019": "c60a6e2962c9b8ccbd458d12c8582644",
+    "2021_train": "38a7bb733f7a09214d44293460ec0021",
+    "2021_train_mini": "db6ed8330e634445efc8fec83ae81442",
+    "2021_valid": "f6f6e0e242e3d4c9569ba56400938afc",
+}
+
+
+class INaturalist(VisionDataset):
+    """`iNaturalist <https://github.com/visipedia/inat_comp>`_ Dataset.
+
+    Args:
+        root (string): Root directory of dataset where the image files are stored.
+            This class does not require/use annotation files.
+        version (string, optional): Which version of the dataset to download/use. One of
+            '2017', '2018', '2019', '2021_train', '2021_train_mini', '2021_valid'.
+            Default: `2021_train`.
+        target_type (string or list, optional): Type of target to use, for 2021 versions, one of:
+
+            - ``full``: the full category (species)
+            - ``kingdom``: e.g. "Animalia"
+            - ``phylum``: e.g. "Arthropoda"
+            - ``class``: e.g. "Insecta"
+            - ``order``: e.g. "Coleoptera"
+            - ``family``: e.g. "Cleridae"
+            - ``genus``: e.g. "Trichodes"
+
+            for 2017-2019 versions, one of:
+
+            - ``full``: the full (numeric) category
+            - ``super``: the super category, e.g. "Amphibians"
+
+            Can also be a list to output a tuple with all specified target types.
+            Defaults to ``full``.
+        transform (callable, optional): A function/transform that takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.RandomCrop``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        download (bool, optional): If true, downloads the dataset from the internet and
+            puts it in root directory. If dataset is already downloaded, it is not
+            downloaded again.
+    """
+    
+    #NOTE: FOR NOW ONLY _INIT_2021 METHOD HAS BEEN ADAPTED 
+    #NOTE: FOR NOW THE SELF.TARGET ATTRIBUTE IS DEFINED ONLY FOR SINGLE LABEL USING; NOT IMPLEMENTED YET FOR MULTI-LABELS SITUATION
+    
+    def __init__(
+        self,
+        root: str,
+        version: str = "2021_train",
+        target_type: Union[List[str], str] = "full",
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        download: bool = False,
+    ) -> None:
+        self.version = verify_str_arg(version, "version", DATASET_URLS.keys())
+
+        super().__init__(os.path.join(root, version), transform=transform, target_transform=target_transform)
+
+        os.makedirs(root, exist_ok=True)
+        if download:
+            self.download()
+
+        if not self._check_integrity():
+            raise RuntimeError("Dataset not found or corrupted. You can use download=True to download it")
+
+        self.all_categories: List[str] = []
+
+        # map: category type -> name of category -> index
+        self.categories_index: Dict[str, Dict[str, int]] = {}
+
+        # list indexed by category id, containing mapping from category type -> index
+        self.categories_map: List[Dict[str, int]] = []
+
+        if not isinstance(target_type, list):
+            target_type = [target_type]
+        if self.version[:4] == "2021":
+            self.target_type = [verify_str_arg(t, "target_type", ("full", *CATEGORIES_2021)) for t in target_type]
+            self._init_2021()
+        else:
+            self.target_type = [verify_str_arg(t, "target_type", ("full", "super")) for t in target_type]
+            self._init_pre2021()
+
+        # index of all files: (full category id, filename)
+        self.index: List[Tuple[int, str]] = []
+        
+        self.targets = []
+        
+        for dir_index, dir_name in enumerate(self.all_categories):
+            files = os.listdir(os.path.join(self.root, dir_name)) #list of all files inside each category folder
+            for fname in files:
+                self.index.append((dir_index, fname))
+                
+                
+                #after the _init_2021 procedure we define a self.target list attribute
+                #we use self.target_type[0] as we are using a single element; in this case self.target_type is a list with 1 element
+                self.targets.append(self.categories_map[dir_index][self.target_type[0]]) 
+                #print(dir_index, self.categories_map[dir_index])
+        #print(self.targets)
+    def _init_2021(self) -> None:
+        """Initialize based on 2021 layout"""
+
+        self.all_categories = sorted(os.listdir(self.root)) #the list of all categories folders
+
+        # map: category type -> name of category -> index
+        self.categories_index = {k: {} for k in CATEGORIES_2021}
+        
+        #we define a variable with same structure of self.categories_index 
+        #while self.categories_index store the index self.categories_occourencesstore the number of occurencies of each class
+        #we can then define self.categories_index  ordering according to the occourences
+        self.categories_occourences = {k: {} for k in CATEGORIES_2021}
+
+        for dir_index, dir_name in enumerate(self.all_categories):
+            #we start counting the files into the selected path
+            Num_Images_in_folder =  len(os.listdir(os.path.join(self.root, dir_name)))
+            
+            
+            pieces = dir_name.split("_")
+            if len(pieces) != 8:
+                raise RuntimeError(f"Unexpected category name {dir_name}, wrong number of pieces")
+            if pieces[0] != f"{dir_index:05d}":
+                raise RuntimeError(f"Unexpected category id {pieces[0]}, expecting {dir_index:05d}")
+                
+            cat_map = {}
+            #here we define the number of occurrencies in the dataset of each class
+            for cat, name in zip(CATEGORIES_2021, pieces[1:7]):
+                
+                if name in self.categories_occourences[cat]:
+                    self.categories_occourences[cat][name] += Num_Images_in_folder
+                else:
+                    self.categories_occourences[cat][name] = Num_Images_in_folder
+               
+              
+
+        #here we define the class index according to the above ordering
+        for cat in self.categories_occourences:
+            self.categories_occourences[cat] = dict(sorted(self.categories_occourences[cat].items(), key=operator.itemgetter(1),reverse=True))
+            CatCount=0
+            for name in self.categories_occourences[cat]:
+                self.categories_index[cat][name] = CatCount
+                CatCount+=1
+        
+        print('occ', self.categories_occourences['phylum']) 
+        print('ind',self.categories_index['phylum'])      
+ 
+        #define the mapping between each class and the corresponding label
+        for dir_index, dir_name in enumerate(self.all_categories): 
+            pieces = dir_name.split("_")
+            if len(pieces) != 8:
+                raise RuntimeError(f"Unexpected category name {dir_name}, wrong number of pieces")
+            if pieces[0] != f"{dir_index:05d}":
+                raise RuntimeError(f"Unexpected category id {pieces[0]}, expecting {dir_index:05d}")
+            for cat, name in zip(CATEGORIES_2021, pieces[1:7]):                
+                cat_map[cat] = self.categories_index[cat][name] 
+            #print(cat_map)
+            #we save for each of the 10000 classes a list of the corresponding mapping between category name and labels
+            #NOTE: the deepcpoy is necessary since dict is a mutable object
+            self.categories_map.append(copy.deepcopy(cat_map)) 
+
+        #print('here the number of element per class', self.categories_occourences)
+
+
+    def _init_pre2021(self) -> None:
+        """Initialize based on 2017-2019 layout"""
+
+        # map: category type -> name of category -> index
+        self.categories_index = {"super": {}}
+
+        cat_index = 0
+        super_categories = sorted(os.listdir(self.root))
+        for sindex, scat in enumerate(super_categories):
+            self.categories_index["super"][scat] = sindex
+            subcategories = sorted(os.listdir(os.path.join(self.root, scat)))
+            for subcat in subcategories:
+                if self.version == "2017":
+                    # this version does not use ids as directory names
+                    subcat_i = cat_index
+                    cat_index += 1
+                else:
+                    try:
+                        subcat_i = int(subcat)
+                    except ValueError:
+                        raise RuntimeError(f"Unexpected non-numeric dir name: {subcat}")
+                if subcat_i >= len(self.categories_map):
+                    old_len = len(self.categories_map)
+                    self.categories_map.extend([{}] * (subcat_i - old_len + 1))
+                    self.all_categories.extend([""] * (subcat_i - old_len + 1))
+                if self.categories_map[subcat_i]:
+                    raise RuntimeError(f"Duplicate category {subcat}")
+                self.categories_map[subcat_i] = {"super": sindex}
+                self.all_categories[subcat_i] = os.path.join(scat, subcat)
+
+        # validate the dictionary
+        for cindex, c in enumerate(self.categories_map):
+            if not c:
+                raise RuntimeError(f"Missing category {cindex}")
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where the type of target specified by target_type.
+        """
+
+        cat_id, fname = self.index[index]
+        img = Image.open(os.path.join(self.root, self.all_categories[cat_id], fname))
+
+        target: Any = []
+        for t in self.target_type:
+            if t == "full":
+                target.append(cat_id)
+            else:
+                target.append(self.categories_map[cat_id][t])
+        target = tuple(target) if len(target) > 1 else target[0]
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def category_name(self, category_type: str, category_id: int) -> str:
+        """
+        Args:
+            category_type(str): one of "full", "kingdom", "phylum", "class", "order", "family", "genus" or "super"
+            category_id(int): an index (class id) from this category
+
+        Returns:
+            the name of the category
+        """
+        if category_type == "full":
+            return self.all_categories[category_id]
+        else:
+            if category_type not in self.categories_index:
+                raise ValueError(f"Invalid category type '{category_type}'")
+            else:
+                for name, id in self.categories_index[category_type].items():
+                    if id == category_id:
+                        return name
+                raise ValueError(f"Invalid category id {category_id} for {category_type}")
+
+
+    def _check_integrity(self) -> bool:
+        return os.path.exists(self.root) and len(os.listdir(self.root)) > 0
+
+    def download(self) -> None:
+        if self._check_integrity():
+            raise RuntimeError(
+                f"The directory {self.root} already exists. "
+                f"If you want to re-download or re-extract the images, delete the directory."
+            )
+
+        base_root = os.path.dirname(self.root)
+
+        download_and_extract_archive(
+            DATASET_URLS[self.version], base_root, filename=f"{self.version}.tgz", md5=DATASET_MD5[self.version]
+        )
+
+        orig_dir_name = os.path.join(base_root, os.path.basename(DATASET_URLS[self.version]).rstrip(".tar.gz"))
+        if not os.path.exists(orig_dir_name):
+            raise RuntimeError(f"Unable to find downloaded files at {orig_dir_name}")
+        os.rename(orig_dir_name, self.root)
+        print(f"Dataset version '{self.version}' has been downloaded and prepared for use")
+
+    """
+    #INaturalist dataset customized class (see for example https://github.com/frank-xwang/RIDE-LongTailRecognition/blob/main/data_loader/inaturalist_data_loaders.py): 
+        #the built-in class perform early load, but the dataset is quite big so we define a customized version that implement lazy data-loading
+    class LT_Dataset(torch.utils.data.Dataset):
+        
+        def __init__(self, root, txt, transform=None):
+            self.img_path = []
+            self.labels = []
+            self.transform = transform
+            with open(txt) as f:
+                for line in f:
+                    self.img_path.append(os.path.join(root, line.split()[0]))
+                    self.labels.append(int(line.split()[1]))
+            self.targets = self.labels # Sampler needs to use targets
+            
+        def __len__(self):
+            return len(self.labels)
+            
+        def __getitem__(self, index):
+    
+            path = self.img_path[index]
+            label = self.labels[index]
+            
+            with open(path, 'rb') as f:
+                sample = Image.open(f).convert('RGB')
+            
+            if self.transform is not None:
+                sample = self.transform(sample)
+    
+            # return sample, label, path
+            return sample, label
+    """
 
 
 
 
+class DatasetTrial:
+    
+    def __init__(self, params):
+        self.params = params.copy()
+    
+    def DataTempCopy(self):
+        """
+        This is a copy of the DataLoad method in bricks; we use it (in absence of class selection) to test the dataset on a temp instance, count the number the clasees and create the mapping dict 
+        Returns
+        -------
+        None.
 
+        """
+        
+            
+        # convert data to torch.FloatTensor
+        #transform = transforms.ToTensor()
+        
+        #convert data to tensor and standardize them (rescale each channel of each image fixing the mean to 0 and the std to 1)
+        
+        
+        
+        #TODO: correct standardization for the mnist dataset below
+        if (self.params['Dataset']=='MNIST'):
+            self.transform = transforms.Compose([
+                        transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+                        transforms.Normalize((0.), (1.))])     
+        elif(self.params['Dataset']=='CIFAR10'):    
+            self.transform = transforms.Compose([
+                    transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+                    #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
+                    transforms.Normalize((0.49236655, 0.47394478, 0.41979155), (0.24703233, 0.24348505, 0.26158768))]) 
+        elif(self.params['Dataset']=='Imagenet-LT'): 
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        elif(self.params['Dataset']=='Places365'):
+            self.transform = transforms.Compose([
+                transforms.ToTensor()
+            ])
+        elif(self.params['Dataset']=='CIFAR100'):    
+            self.transform = transforms.Compose([
+                    transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+                    #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
+                    #wrong values #transforms.Normalize((0.5074,0.4867,0.4411),(0.2011,0.1987,0.2025)),
+                    transforms.Normalize((0.5070746, 0.48654896, 0.44091788),(0.26733422, 0.25643846, 0.27615058))
+            ])
+        elif(self.params['Dataset']=='INATURALIST'):
+            self.transform = transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Resize([8,8])
+            ])
+            
+        """    
+        #to check the above values used for the dataset standardization you can use the function Mean and Std from DatasetMeanStd class (CodeBlocks module); below an example for the mean
+        a = []
+        a = DatasetMeanStd('CIFAR100', self.params['label_map']).Mean()
+        print("mean of dataset for standardization", a,flush=True)
+        a = []
+        a = DatasetMeanStd('CIFAR100', self.params['label_map']).Std()
+        print("Std of dataset for standardization", a,flush=True)        
+        """
+        # choose the training and testing datasets
+        
+        if (self.params['Dataset']=='MNIST'):
+            print('this run used MNIST dataset', file = self.params['info_file_object'])
+            self.train_data = datasets.MNIST(root = 'data_nobackup', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.MNIST(root = 'data_nobackup', train = False, download = True, transform = self.transform)
+            self.valid_data = datasets.MNIST(root = 'data_nobackup', train = False, download = True, transform = self.transform)
+        elif(self.params['Dataset']=='CIFAR10'):
+            print('this run used CIFAR10 dataset', file = self.params['info_file_object'])
+            self.train_data = datasets.CIFAR10(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR10(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR10(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+        elif(self.params['Dataset']=='Imagenet-LT'):            
+            self.train_data = LT_Dataset('./data_nobackup', 'ImageNet_LT/ImageNet_LT_train.txt', transform=self.transform)
+            self.valid_data = LT_Dataset('./data_nobackup', 'ImageNet_LT/ImageNet_LT_test.txt', transform=self.transform)     
+            kwargs = dict(histtype='stepfilled', alpha=0.3, bins='auto',density=True)
+            plt.hist(self.train_data, **kwargs)
+            plt.show()
+            plt.savefig("train.pdf")
+            plt.hist(self.valid_data, **kwargs)
+            plt.savefig("valid.pdf")
+            plt.show()
+        elif(self.params['Dataset']=='Places365'):
+            self.train_data = datasets.Places365(root = 'data_nobackup/Places365', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
+            self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
+        elif(self.params['Dataset']=='CIFAR100'):
+            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)            
+        elif(self.params['Dataset']=='INATURALIST'):
+            
+            self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
+            self.test_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False) 
+            self.valid_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False)            
+            
+            """
+            for key in self.train_data.categories_index[label]:
+                print(key, self.train_data.categories_index[label][key])
+            """
+            
+            """
+            LenDataset=0
+            for item in self.train_data:
+                LenDataset+=1
+            print(LenDataset)
+            print(type(item[1]))
+            
+            """
+            
+            print('number of elements and classes (train)', len(self.train_data.targets),len(torch.unique(torch.Tensor(self.train_data.targets))), flush=True)
+
+            print('number of elements and classes (test)', len(self.test_data.targets),len(torch.unique(torch.Tensor(self.test_data.targets))), flush=True)
+          
 
 
 
@@ -1355,6 +1957,9 @@ class Bricks:
             self.model = VGG(self.params)
         elif(self.params['NetMode']=='VGG_Custom_Dropout'):
             self.model = VGG_Custom_Dropout(self.params)
+        elif(self.params['NetMode']=='ResNet18'):  
+            self.model = ResNet18(self.params, in_channels=3, resblock=ResBlock, outputs=self.params['n_out'])
+        
             
         else:
             print('Architecture argument is wrong', file = self.params['WarningFile'])
@@ -1405,26 +2010,99 @@ class Bricks:
                     transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
                     #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
                     transforms.Normalize((0.49236655, 0.47394478, 0.41979155), (0.24703233, 0.24348505, 0.26158768))]) 
-        
+        elif(self.params['Dataset']=='Imagenet-LT'): 
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        elif(self.params['Dataset']=='Places365'):
+            self.transform = transforms.Compose([
+                transforms.ToTensor()
+            ])
+        elif(self.params['Dataset']=='CIFAR100'):    
+            self.transform = transforms.Compose([
+                    transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+                    #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
+                    #wrong values #transforms.Normalize((0.5074,0.4867,0.4411),(0.2011,0.1987,0.2025)),
+                    transforms.Normalize((0.5070746, 0.48654896, 0.44091788),(0.26733422, 0.25643846, 0.27615058))
+            ])
+        elif(self.params['Dataset']=='INATURALIST'):
+            self.transform = transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Resize([32,32]),
+                    transforms.Normalize([0.466, 0.471, 0.380], [0.195, 0.194, 0.192])
+            ])
+            
+        """    
         #to check the above values used for the dataset standardization you can use the function Mean and Std from DatasetMeanStd class (CodeBlocks module); below an example for the mean
-        """
         a = []
-        a = CodeBlocks.DatasetMeanStd('CIFAR10').Mean()/
-        print(a)
+        a = DatasetMeanStd('CIFAR100', self.params['label_map']).Mean()
+        print("mean of dataset for standardization", a,flush=True)
+        a = []
+        a = DatasetMeanStd('CIFAR100', self.params['label_map']).Std()
+        print("Std of dataset for standardization", a,flush=True)        
         """
-        
         # choose the training and testing datasets
         
         if (self.params['Dataset']=='MNIST'):
             print('this run used MNIST dataset', file = self.params['info_file_object'])
-            self.train_data = datasets.MNIST(root = 'data', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.MNIST(root = 'data', train = False, download = True, transform = self.transform)
-            self.valid_data = datasets.MNIST(root = 'data', train = False, download = True, transform = self.transform)
+            self.train_data = datasets.MNIST(root = self.params['DataFolder'] , train = True, download = True, transform = self.transform)
+            self.test_data = datasets.MNIST(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)
+            self.valid_data = datasets.MNIST(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)
         elif(self.params['Dataset']=='CIFAR10'):
             print('this run used CIFAR10 dataset', file = self.params['info_file_object'])
-            self.train_data = datasets.CIFAR10(root = 'data', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.CIFAR10(root = 'data', train = False, download = True, transform = self.transform) 
-            self.valid_data = datasets.CIFAR10(root = 'data', train = False, download = True, transform = self.transform) 
+            self.train_data = datasets.CIFAR10(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR10(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR10(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+        elif(self.params['Dataset']=='Imagenet-LT'):            
+            self.train_data = LT_Dataset('./data_nobackup', 'ImageNet_LT/ImageNet_LT_train.txt', transform=self.transform)
+            self.valid_data = LT_Dataset('./data_nobackup', 'ImageNet_LT/ImageNet_LT_test.txt', transform=self.transform)     
+            kwargs = dict(histtype='stepfilled', alpha=0.3, bins='auto',density=True)
+            plt.hist(self.train_data, **kwargs)
+            plt.show()
+            plt.savefig("train.pdf")
+            plt.hist(self.valid_data, **kwargs)
+            plt.savefig("valid.pdf")
+            plt.show()
+        elif(self.params['Dataset']=='Places365'):
+            self.train_data = datasets.Places365(root = 'data_nobackup/Places365', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
+            self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
+        elif(self.params['Dataset']=='CIFAR100'):
+            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)            
+        elif(self.params['Dataset']=='INATURALIST'):
+            label = 'class'
+            self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
+            self.test_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False) 
+            self.valid_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False)            
+            
+            """
+            for key in self.train_data.categories_index[label]:
+                print(key, self.train_data.categories_index[label][key])
+            """
+            
+            """
+            LenDataset=0
+            for item in self.train_data:
+                LenDataset+=1
+            print(LenDataset)
+            print(type(item[1]))
+            
+            """
+            
+            print('numero di elementi e classi', len(self.train_data.targets),len(torch.unique(torch.Tensor(self.train_data.targets))), flush=True)
+
+            
+
+
+            #print('numero di classi', len(self.train_data.classes), flush=True)
+        
+            #os._exit(0)
+            #sys.exit("Error message")
+
+        
         else:
             print('the third argument ypo passed to the python code is not valid', file = self.params['WarningFile'])
         
@@ -1432,25 +2110,13 @@ class Bricks:
         
         
         
-        #A CLEANER APPROACH TO SELECT THE CLASSES
-        if((self.params['ClassSelectionMode']=='ON') and (self.params['ClassImbalance'] == 'OFF')):
-            #we start creating a map (throught a dictionary {realLabel: newLabel} ) betweeen the classes that we want to select and a ordered list of label
-            
-            self.label_map = self.params['label_map']
-            #NOTE: when you modify the above dict you have tomodify also the classes appeearing in the following 2 conditions accordingly
-            self.train_data = [(img, self.label_map[label]) for img, label in self.train_data if label in [1,9]]
-            self.test_data = [(img, self.label_map[label]) for img, label in self.test_data if label in [1,9]]
-            
 
-            print('this run used this subset of classes ({original dataset labels : new mapped label for the simulation}): ', self.label_map, file = self.params['info_file_object'])
-        elif(self.params['ClassSelectionMode']=='OFF'):
-            print('this run used all the classes of the dataset:', file = self.params['info_file_object'])
-            #num_classes=10
+            
             
             
         #DATASET SELECTION FOR UNBALANCED CASE
         #define a variable to fix the unbalance rate between the 2 classes
-        if((self.params['ClassSelectionMode']=='ON') and (self.params['ClassImbalance'] == 'ON')):
+        if(self.params['ClassImbalance'] == 'ON'):
             
             self.TrainDL = {}#dict to store data loader (one for each mapped class) for train set
             self.TestDL = {}#dict to store data loader (one for each mapped class) for test set
@@ -1459,14 +2125,17 @@ class Bricks:
             #the advantage of proceding like that is that we can easly get the exact same number of batches per each class
             if self.params['OversamplingMode'] == 'OFF':
                 #the batch size for each input class
+                print('ImabalnceProportions MappedClassOcc',  self.params['ImabalnceProportions'], self.params['MappedClassOcc'])
                 self.TrainClassBS = np.rint((self.params['batch_size']/np.sum(self.params['ImabalnceProportions']))*np.divide(self.params['ImabalnceProportions'], self.params['MappedClassOcc'])).astype(int)
                 #the batch size for the whole associated output class given simply by the above expession multiplyed for the occurrences of each output class in the mapping
                 self.TrainTotalClassBS = (np.rint((self.params['batch_size']/np.sum(self.params['ImabalnceProportions']))*np.divide(self.params['ImabalnceProportions'], self.params['MappedClassOcc'])).astype(int)*(self.params['MappedClassOcc'])).astype(int)
+                print(self.TrainClassBS, self.TrainTotalClassBS)
             elif self.params['OversamplingMode'] == 'ON':
                 self.TrainClassBS = np.rint((self.params['batch_size']/self.model.num_classes)*np.reciprocal(self.params['MappedClassOcc'])).astype(int)
                 self.TrainTotalClassBS = ((np.rint((self.params['batch_size']/self.model.num_classes)*np.reciprocal(self.params['MappedClassOcc'])).astype(int))*(self.params['MappedClassOcc'])).astype(int)
-            print("real size of the batch size of the training set (after the roundings): {}".format(np.sum(self.TrainTotalClassBS)),flush=True, file = self.params['info_file_object']) 
-            print("the total sizes of mapped classes are {}".format(self.TrainTotalClassBS))
+            print(self.params['batch_size'], self.model.num_classes, np.reciprocal(self.params['MappedClassOcc']),flush=True)
+            print("real size of the batch siz, e of the training set (after the roundings): {}".format(np.sum(self.TrainTotalClassBS)),flush=True, file = self.params['info_file_object']) 
+            print("the total sizes of mapped classes are {}, the occourences {}".format(self.TrainTotalClassBS, self.params['MappedClassOcc']))
             
             MajorInputClassBS = np.amax(self.TrainClassBS) #we select here the class with greater element in the batch; that one will establish the bottle neck for the dataset, we assign to it the maximum possible number of element            
 
@@ -1490,19 +2159,35 @@ class Bricks:
                 #TRAIN
                 self.trainTarget_idx = (self.traintargets==key).nonzero() 
                 #l0=int(900/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #just for debug purpose
+                
+                
                 l0 = int(len(self.trainTarget_idx)/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
+
+                if(self.params['Dataset']=='INATURALIST'): #we fix the elements of the majority class to 50000 to reduce the imbalance and use the usual power law distribution
+                    l0 = int(102400/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
+
+
                 self.Trainl0 = l0
                 print("the number of elements selected by the class {} loaded on the trainset is {}".format(key, self.Trainl0),flush=True, file = self.params['info_file_object'])
                 #print(self.trainTarget_idx)
                 ClassTempVar = '%s'%self.params['label_map'][key]
                 
                 #VALID
-                self.validTarget_idx = (self.validtargets==key).nonzero()
-                self.Validl0= 150 #should be less than 500 (since the total test set has 1000 images per class)                
+                if(self.params['Dataset']=='INATURALIST'): #in this dataset we have a different number of images per class: we then select the same number of images for each class
+                    self.validTarget_idx = (self.validtargets==key).nonzero()
+                    self.Validl0= int(130)
+                else:
+                    self.validTarget_idx = (self.validtargets==key).nonzero()
+                    self.Validl0= int(len(self.validTarget_idx)/2) #should be less than 500 (since the total test set has 1000 images per class)                
                 #TEST
                 if (self.params['ValidMode']=='Test'): #if we are in testing mode we have to repeat it for a third dataset
-                    self.testTarget_idx = (self.testtargets==key).nonzero()
-                    self.Testl0= 150 #should be less than 500 (since the total test set has 1000 images per class)
+                    if(self.params['Dataset']=='INATURALIST'):
+      
+                        self.testTarget_idx = (self.testtargets==key).nonzero()
+                        self.Testl0= int(130)    
+                    else:
+                        self.testTarget_idx = (self.testtargets==key).nonzero()
+                        self.Testl0= int(len(self.testTarget_idx)/2)  #should be less than 500 (since the total test set has 1000 images per class)
                 
                 if ClassTempVar in self.TrainIdx: #if the mapped class has already appeared, we concatenate the new indeces to the existing ones
                     self.TrainIdx['%s'%self.params['label_map'][key]] = torch.cat((self.TrainIdx['%s'%self.params['label_map'][key]], self.trainTarget_idx[:][0:self.Trainl0]),0)
@@ -1521,7 +2206,8 @@ class Bricks:
                 if (self.params['ValidMode']=='Test'):
                     self.test_data.targets[self.testtargets==key]=self.params['label_map'][key]
                     
-                    
+            print('indeces divided per classes',flush=True)
+
             #DATALOADER CREATION    
             #now we iterate over the mapped classes avoiding repetition
             print("checking that the data loader corresponding to each class contain the same number of batches",flush=True, file = self.params['info_file_object'])
@@ -1568,6 +2254,8 @@ class Bricks:
 #         for data, label in self.valid_loader:
 #             for im in range(0, len(label)):
 #                 self.TestSamplesClass[label[im]] +=1
+
+        print('dataloaders prepared', flush=True)
         
         for key in self.TrainDL:
             self.SamplesClass[ind] = len(self.TrainDL[key].sampler) #nota che con len(self.TrainDL[key]) ottieni invece il numero di batches
@@ -1591,10 +2279,23 @@ class Bricks:
             print("valid number of samples in  {} are {}".format(key, self.ValidSamplesClass[ind]), flush = True, file = self.params['info_file_object'])
             ind+=1
             
+            
+        
                 
-
-
-
+        #display an element from each mapped class to chck
+        """
+        for MC in set(list(self.params['label_map'].values())):
+            # Display image and label.
+            trainfeature, trainlabel = next(iter(self.TrainDL['Class%s'%MC]))
+            print(f"Feature Batch Shape: {trainfeature.size()}", flush = True)
+            print(f"Label Batch Shape: {trainlabel.size()}", flush = True)
+            imgdir = trainfeature[0].squeeze()
+            labels = trainlabel[0]
+            #plt.imshow(imgdir, cmap="gray")
+            plt.imshow(imgdir.permute(1, 2, 0)) #reverse order to make image compatible with format of imshow argument
+            plt.show()
+            print(f"Labels: {labels}")
+        """
     
 
         
@@ -1711,7 +2412,7 @@ class Bricks:
                 self.optimizer.zero_grad()
                         
                     
-                    
+            print('init of {} performed'.format(EvalKey), flush=True)      
 
  
                     
@@ -1720,7 +2421,8 @@ class Bricks:
             """
             NetInstance.LastLayerRepresCompression()
             """
-            
+        
+        print('initial loop on train set performed', flush=True)
             
         self.LossAccAppend(0, SetFlag)
             
@@ -1881,7 +2583,7 @@ class Bricks:
             NetInstance.LastLayerRepresCompression()
             """
             
-            
+        print('initial loop on valid set performed', flush=True)    
         self.LossAccAppend(0, SetFlag)
         
         
@@ -2183,7 +2885,7 @@ class Bricks:
 
         """
 
-        
+        #print("label and output", torch.reshape(label, (-1,)))
         self.loss = self.criterion(self.output,torch.reshape(label, (-1,))) #reduction = 'none' is the option to get back a single loss for each sample in the batch (for this reason I use the SampleCriterion)
         #print("label prima", label)
         label = torch.reshape(label, (-1,))
@@ -2870,7 +3572,7 @@ class Bricks:
                 #TODO: the following works only for the 2 classes problem (only one angle) pay attention in passing to more classes
                 self.cos_alpha = ScalProd/((self.Norm[i]*self.Norm[j])+self.Epsilon) #I add a regularizzation in case I get near pi to preventh math error domain due to rounding errors 
                 
-                print("The Scalar product between class {} and {} and corresponding norms are: {} {} {}, il prodotto delle 2 norme {}".format(i,j,ScalProd, self.Norm[i], self.Norm[j], self.Norm[i]*self.Norm[j]), flush=True)
+                #print("The Scalar product between class {} and {} and corresponding norms are: {} {} {}, il prodotto delle 2 norme {}".format(i,j,ScalProd, self.Norm[i], self.Norm[j], self.Norm[i]*self.Norm[j]), flush=True)
                 print("The Scalar product between class {} and {} and corresponding norms are: {} {} {}, il prodotto delle 2 norme {}".format(i,j,ScalProd, self.Norm[i], self.Norm[j], self.Norm[i]*self.Norm[j]), file = self.params['DebugFile_file_object'])
                 self.model.PCGAngles[AngleIndex][TimeComp+1] = math.acos(ScalProd/((self.Norm[i]*self.Norm[j])+self.Epsilon)) #I add a regularizzation in case I get near pi to preventh math error domain due to rounding errors 
                 print("ANGLE IS ", self.model.PCGAngles[AngleIndex][0], file = self.params['EpochValues_file_object'])

@@ -158,7 +158,7 @@ StopFlag='OFF' #this flag active ('ON') or deactive ('OFF') the early stopping (
 StopPoint = 30
 
 #the 2 following variables are only to easly set same times (to compare continuous and interrupted runs) for checkout testing 
-n_epochsComp = 50
+n_epochsComp = 10
 NStepsComp = 10
 
 
@@ -175,15 +175,15 @@ if Set_Device=='CPU':
     device = "cpu"
 elif Set_Device=='GPU':
 #GPU
-    device = "cuda:1" if torch.cuda.is_available() else "cpu"    #device = "cuda"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"    #device = "cuda"
 print("Using {} device".format(device))
 
 # time parameters (run extention, number of points,...)
-n_epochs = 1500#8000#3000#400 # number of epochs to train the model
+n_epochs = 100 #8000#3000#400 # number of epochs to train the model
 epoch=0 #initialization of value of current epoch
 #we want to express the time in steps, not in epoch: Nbatch*Nepoch = Nsteps, with Nbatch = Nsamples/Batchsize (and the batch size is the one used in SGD at each gradient computation)
 
-NSteps = 50
+NSteps = 7
 
 #extention for autocorrelation observables
 Ntw = 10
@@ -210,12 +210,13 @@ batches_num =0 #this variable counts the number of non-trashed batches (for exam
 SphericalConstrainMode = 'OFF'  #(WARNING: feature not implemented yet, ignore it for now)
 ClassSelectionMode = 'ON' #can be set either 'OFF' or 'ON'. setting this flag 'ON' to modify the default composition of a dataset (excluding some classes) 
 ClassImbalance = 'ON' #can be set either 'OFF' or 'ON'. setting this flag 'ON' to set imbalance ratio between classes of the dataset 
-MacroMode =  'MULTI' #Set the desired configuration for the composition of the modified dataset. The selected classes (and their relative abboundance (in case of imbalance)) can be set by LM and IR dict (see below)
+MacroMode =  'INAturalist' #'CIFAR100SC' #Set the desired configuration for the composition of the modified dataset. The selected classes (and their relative abboundance (in case of imbalance)) can be set by LM and IR dict (see below)
 ValidMode = 'Test' #('Valid' or 'Test') #can be valid or test and selsct different part of a separate dataset used only for testing/validating 
-IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
+
+IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 1, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6, 'CIFAR100SC':0.85, 'INAturalist':0.5} #IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
 
 
-Dynamic = 'PCNSGD+R' #algorithm selection 
+Dynamic = 'SGD' #algorithm selection 
 
 FFCV_Mode = 'OFF' #this flag trigger the using of ffcv library to speed up the simulations (WARNING: feature not implemented yet, ignore it for now)
 
@@ -234,7 +235,24 @@ StochasticMode = {'SGD': 'ON', 'BISECTION': 'ON', 'PCNSGD': 'ON', 'PCNSGD+O': 'O
 
 UnbalanceFactor = IR[MacroMode]
 if(ClassSelectionMode=='ON'):
-    LM = {'ON': {0:1, 1: 1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:1, 9: 1}, 'OFF': {1: 0, 9: 1}, 'MULTI': {0:0, 1: 1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9: 9}, 'DH': {7:0, 4:1}, 'MultiTest' : {0:2, 1:1, 2:0}, '0_4': {0:0, 1: 1, 2:2, 3:3, 4:4}}
+    
+    CIFAR100_coarse_labels = np.array([ 4,  1, 14,  8,  0,  6,  7,  7, 18,  3,  
+                           3, 14,  9, 18,  7, 11,  3,  9,  7, 11,
+                           6, 11,  5, 10,  7,  6, 13, 15,  3, 15,  
+                           0, 11,  1, 10, 12, 14, 16,  9, 11,  5, 
+                           5, 19,  8,  8, 15, 13, 14, 17, 18, 10, 
+                           16, 4, 17,  4,  2,  0, 17,  4, 18, 17, 
+                           10, 3,  2, 12, 12, 16, 12,  1,  9, 19,  
+                           2, 10,  0,  1, 16, 12,  9, 13, 15, 13, 
+                          16, 19,  2,  4,  6, 19,  5,  5,  8, 19, 
+                          18,  1,  2, 15,  6,  0, 17,  8, 14, 13])
+    
+    CIFAR100_SuperClass_Dict = {}
+    for classes in range(0,100):
+        CIFAR100_SuperClass_Dict[classes] = CIFAR100_coarse_labels[classes]
+    print(CIFAR100_SuperClass_Dict)
+    
+    LM = {'ON': {0:1, 1: 1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:1, 9: 1}, 'OFF': {1: 0, 9: 1}, 'MULTI': {0:0, 1: 1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9: 9}, 'DH': {7:0, 4:1}, 'MultiTest' : {0:2, 1:1, 2:0}, '0_4': {0:0, 1: 1, 2:2, 3:3, 4:4}, 'CIFAR100SC':CIFAR100_SuperClass_Dict, 'INAturalist': {0:0, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7}}
     
     label_map = LM[MacroMode]#{1: 0, 9: 1} #{0:1, 1: 1, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:1, 9: 1} #{start_class:mapped_class}
     ClassesList = list(label_map.values()) #sarà utile per l'embedding in tensorboard
@@ -246,16 +264,22 @@ if(ClassSelectionMode=='ON'):
     for MC in set(ClassesList):
         MappedClassOcc[MC] = (sum(1 for value in label_map.values() if value == MC))
     
+    print("the number of effective classes (after the label mapping) is {}".format(num_classes))
+    
 elif(ClassSelectionMode=='OFF'):
+    #we set preliminarly the following variables to define the params dict and then we update them with the correct values inferred directly from the dataset
     label_map = 'Dummy parameter'
     num_classes = 10
-
-print("the number of effective classes (after the label mapping) is {}".format(num_classes))
+    MappedClassOcc = np.zeros(num_classes)
+    
 #define now an array of imabalance ratio for the multiclass case
 ImabalnceProportions = np.zeros(num_classes)
 for i in range (0,num_classes):
     ImabalnceProportions[i] = UnbalanceFactor**i
 
+
+#in some datset (as INaturalist) there is multi-labelling and it is necessary to specify which label to use
+label_type = 'phylum'
 
 
 
@@ -268,6 +292,7 @@ p.add_argument('SampleIndex', help = 'Sample index')
 p.add_argument('FolderName', type = str, help = 'Name of the main folder where to put the samples folders')
 p.add_argument('Dataset', type = str, help = 'Dataset to use (MNIST or CIFAR10)')
 p.add_argument('Architecture', type = str, help = 'Architecture to use for the NN')
+p.add_argument('DataFolder', type = str, help = 'Path for the dataset folder')
 p.add_argument('LR', type = float, help = 'learning rate used in the run')
 p.add_argument('BS', type = int, help = 'batch size used in the run')
 p.add_argument('GF', type = float, help = 'parameter for the group norm used in the run')    
@@ -279,10 +304,11 @@ print('first parameter (run index) passed from the script is: ', args.SampleInde
 print('second parameter (Output Folder) passed from the script is: ', args.FolderName)
 print('third parameter (dataset) passed from the script is: ', args.Dataset)
 print('fourth parameter (architecture) passed from the script is:', args.Architecture)
-print('fifth parameter (learning rate) passed from the script is: ', args.LR)
-print('sixth parameter (batch size) passed from the script is: ', args.BS)
-print('seventh parameter (Group norm parameter) passed from the script is : ', args.GF)
-print('eighth parameter (dropout prob. parameter)  passed from the script is :', args.DP)               
+print('fifth parameter (dataset folder) passed from the script is:', args.DataFolder)
+print('sixth parameter (learning rate) passed from the script is: ', args.LR)
+print('seventh parameter (batch size) passed from the script is: ', args.BS)
+print('eighth parameter (Group norm parameter) passed from the script is : ', args.GF)
+print('nineth parameter (dropout prob. parameter)  passed from the script is :', args.DP)               
 #we perform all the program SamplesNumber times
 
 #to have the complete printing of long numpy vector/ pytorch tensor on file
@@ -348,9 +374,9 @@ memory_leak = open(DebugFolderPath + "/MemoryHistoryLog.txt", "a")
 params = {'Dynamic': Dynamic,  'FolderPath': FolderPath,  'info_file_object' : info, 'EpochValues_file_object': EpochValues, 
           'ExecutionTimes_file_object' : ExecutionTimes,  'memory_leak_file_object': memory_leak,
           'CorrPrint_file_object' : CorrPrint, 'DebugFile_file_object' : DebugFile , 'WarningFile' : WarningFile, 
-          'StepNorm_file_object' : StepNorm ,
+          'StepNorm_file_object' : StepNorm , 
           'NetMode' : args.Architecture, 'ClassImbalance' : ClassImbalance , 'SphericalRegulizParameter' : SphericalRegulizParameter,
-          'ClassSelectionMode' : ClassSelectionMode, 'SphericalConstrainMode' : SphericalConstrainMode, 
+          'DataFolder': args.DataFolder ,'ClassSelectionMode' : ClassSelectionMode, 'SphericalConstrainMode' : SphericalConstrainMode, 
           'CheckMode' : CheckMode, 'n_epochsComp':n_epochsComp, 'NStepsComp':NStepsComp,
           'n_out' : num_classes , 'label_map' : label_map , 'NSteps' : NSteps , 'n_epochs' : n_epochs, 
           'UnbalanceFactor' : UnbalanceFactor, 'ImabalnceProportions' : ImabalnceProportions,
@@ -360,7 +386,49 @@ params = {'Dynamic': Dynamic,  'FolderPath': FolderPath,  'info_file_object' : i
           'num_workers' : num_workers,  'epoch' : epoch, 'Ntw' : Ntw, 'Nt' : Nt,
           'CheckMode': CheckMode,'StartMode': StartMode, 'MacroMode': MacroMode, 'ValidMode': ValidMode,
           'OversamplingMode': OversamplingMode[Dynamic],'StochasticMode':StochasticMode[Dynamic] ,'MappedClassOcc': MappedClassOcc,
-          'IterationCounter': 0, 'TimesComponentCounter':0,  'TwComponentCounter':0 , 'ProjId': None}
+          'IterationCounter': 0, 'TimesComponentCounter':0,  'TwComponentCounter':0 , 'ProjId': None
+          , 'label_type': label_type}
+
+
+print('the folder root', params['DataFolder'])
+
+
+if(ClassSelectionMode=='OFF'):
+    
+            # tomake the code flexible we trat this case as a specific case of the classe selection in which all the classes are selected:
+            # we start determining the total number of classes
+        
+    #we create a dummy instance just to evaluate the total number of classes
+    FakeNet = CodeBlocks.DatasetTrial(params)
+    FakeNet.DataTempCopy()
+
+
+    num_classes = len(torch.unique(torch.Tensor(FakeNet.train_data.targets)))
+    #print(FakeNet.train_data.targets)
+    print(num_classes)
+    label_map = {}
+    for i in range(0, num_classes):
+        label_map[i]=i
+        
+    ClassesList = list(label_map.values()) #sarà utile per l'embedding in tensorboard
+    MappedClassOcc = np.zeros(num_classes)
+    for MC in set(ClassesList):
+        MappedClassOcc[MC] = (sum(1 for value in label_map.values() if value == MC))       
+           
+            
+    #define now an array of imabalance ratio for the multiclass case
+    ImabalnceProportions = np.zeros(num_classes)
+    for i in range (0,num_classes):
+        ImabalnceProportions[i] = UnbalanceFactor**i
+        
+    #now we just update theitem of the previous dict and we can pass to the real network
+    params['label_map'] = label_map  
+    params['ImabalnceProportions']= ImabalnceProportions
+    params['MappedClassOcc']= MappedClassOcc
+    params['n_out']= num_classes
+
+
+
 
 #if you include the HP looping inside the code at each "hyper-params iteration" makes a new object and assign it to the variable NetInstance
 #The old instance is not referenced anymore, and you cannot access it anymore. So in each loop you have a new fresh instance.
@@ -420,7 +488,7 @@ TB_path = 'TensorBoard'+'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_s
 
 
     
-ProjName = 'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
+ProjName = 'Pro_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
 GroupName = '/GaussInitAlg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode)#'/~Alg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode) #the group identifies the simulations we would like to average togheter for the representation
 RunName = '/Sample' + str(args.SampleIndex)#'/Sample' + str(args.SampleIndex)  #the run name identify the single run belonging to the above broad categories
 
@@ -463,6 +531,8 @@ wandb.config = {
 NetInstance.StoringGradVariablesReset() #clear the gradient copy and Norm variable before initial state
 
 
+start_time = time.time()
+
 #CREATION OF THE DATASET AND STATISTIC STATISTICS BEFORE TRAINING STARTS
 NetInstance.DataLoad() #build dataset and load it on the device
 if (StartMode=='BEGIN'):
@@ -470,6 +540,9 @@ if (StartMode=='BEGIN'):
 elif (StartMode=='RETRIEVE'):
     NetInstance.DefineRetrieveVariables() #evaluation before starting training
     NetInstance.wandb_tables_init() #this block is comtaained in the method InitialState
+
+print("---initialization %d last %s seconds ---" % (NetInstance.params['epoch'] , time.time() - start_time), flush=True, file = ExecutionTimes)
+
 
 img, lab = next(iter(NetInstance.TrainDL['Class0']))
 img = img.double()
@@ -511,7 +584,7 @@ writer.add_graph(NetInstance.model, DummyInput)    #write the net structure on t
 """
 
 N = sum(p.numel() for p in NetInstance.model.parameters() if p.requires_grad)
-print(N)
+print(N, flush=True)
 
 
 #%%  TRAIN THE NETWORK: PRELIMINARY SETTINGS
@@ -556,7 +629,7 @@ dataval, labelval = data, label
 
 
 #before starting the training we PRINT THE PID of the process (this can be useful if you have more process in parallel on the same machine to identify which one is which)
-print("The PID of the main code is: ", os.getpid())
+print("The PID of the main code is: ", os.getpid(), flush=True)
 #saving the static (ones that keep constant during simulation) files on wandb dashboard
 wandb.save('CodeBlocks.py')
 wandb.save('MainBlock.py')
@@ -903,8 +976,8 @@ if (Dynamic=='SGD'):
 
         #lr_schedule.step() #perform the lr_schedule after each epoch
         #print("lr reale", NetInstance.optimizer.state_dict()['param_groups'][0]['lr'])
-        
-        print("---epoch %d last %s seconds ---" % (NetInstance.params['epoch'] , time.time() - start_time), flush=True, file = ExecutionTimes)
+
+        print("---epoch %d last %s seconds ---" % (NetInstance.params['epoch'] , time.time() - start_time), flush=True, file = ExecutionTimes)        
         if args.SampleIndex==str(1):
             print('epoch %d over %d performed' %(NetInstance.params['epoch'], n_epochs), flush=True)
             
