@@ -108,8 +108,8 @@ class DatasetMeanStd:
             self.train_data = datasets.MNIST(root = 'data_nobackup', train = True, download = True, transform = self.transform)
             self.test_data = datasets.MNIST(root = 'data_nobackup', train = False, download = True, transform = self.transform) 
         elif(self.DatasetName=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)
     #TODO: include also the option to calculate mean and std for test sets and MNIST dataset
     
     def Mean(self):
@@ -1629,8 +1629,8 @@ class INaturalist(VisionDataset):
                 self.categories_index[cat][name] = CatCount
                 CatCount+=1
         
-        print('occ', self.categories_occourences['phylum']) 
-        print('ind',self.categories_index['phylum'])      
+        print('occ', self.categories_occourences[self.target_type[0]]) 
+        print('ind',self.categories_index[self.target_type[0]])      
  
         #define the mapping between each class and the corresponding label
         for dir_index, dir_name in enumerate(self.all_categories): 
@@ -1885,9 +1885,9 @@ class DatasetTrial:
             self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
             self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
         elif(self.params['Dataset']=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform) 
-            self.valid_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)            
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)            
         elif(self.params['Dataset']=='INATURALIST'):
             
             self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
@@ -2029,7 +2029,10 @@ class Bricks:
         elif(self.params['Dataset']=='INATURALIST'):
             self.transform = transforms.Compose([
                     transforms.ToTensor(),
-                    transforms.Resize([32,32]),
+                    transforms.Resize([256,256]),
+                    transforms.CenterCrop(224)
+                    #transforms.Resize([8,8])
+                    ,
                     transforms.Normalize([0.466, 0.471, 0.380], [0.195, 0.194, 0.192])
             ])
             
@@ -2069,11 +2072,10 @@ class Bricks:
             self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
             self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
         elif(self.params['Dataset']=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = True, download = True, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform) 
-            self.valid_data = datasets.CIFAR100(root = 'data_nobackup/CIFAR100', train = False, download = True, transform = self.transform)            
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)            
         elif(self.params['Dataset']=='INATURALIST'):
-            label = 'class'
             self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
             self.test_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False) 
             self.valid_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False)            
@@ -2162,10 +2164,11 @@ class Bricks:
                 
                 
                 l0 = int(len(self.trainTarget_idx)/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
-
+                
+                """
                 if(self.params['Dataset']=='INATURALIST'): #we fix the elements of the majority class to 50000 to reduce the imbalance and use the usual power law distribution
                     l0 = int(102400/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
-
+                """
 
                 self.Trainl0 = l0
                 print("the number of elements selected by the class {} loaded on the trainset is {}".format(key, self.Trainl0),flush=True, file = self.params['info_file_object'])
@@ -2175,7 +2178,7 @@ class Bricks:
                 #VALID
                 if(self.params['Dataset']=='INATURALIST'): #in this dataset we have a different number of images per class: we then select the same number of images for each class
                     self.validTarget_idx = (self.validtargets==key).nonzero()
-                    self.Validl0= int(130)
+                    self.Validl0= int(20)
                 else:
                     self.validTarget_idx = (self.validtargets==key).nonzero()
                     self.Validl0= int(len(self.validTarget_idx)/2) #should be less than 500 (since the total test set has 1000 images per class)                
@@ -2184,7 +2187,7 @@ class Bricks:
                     if(self.params['Dataset']=='INATURALIST'):
       
                         self.testTarget_idx = (self.testtargets==key).nonzero()
-                        self.Testl0= int(130)    
+                        self.Testl0= int(20)    
                     else:
                         self.testTarget_idx = (self.testtargets==key).nonzero()
                         self.Testl0= int(len(self.testTarget_idx)/2)  #should be less than 500 (since the total test set has 1000 images per class)
@@ -4137,8 +4140,10 @@ class Bricks:
         None.
 
         """
-        
-        self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'test loss': np.sum(self.model.TestClassesLoss, axis=0)[-1], 'test accuracy': self.model.TestAcc[-1]})
+        if self.params['ValidMode']=='Test':
+            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'test loss': np.sum(self.model.TestClassesLoss, axis=0)[-1], 'test accuracy': self.model.TestAcc[-1]})
+        else: 
+            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'valid loss': np.sum(self.model.ValidClassesLoss, axis=0)[-1], 'test accuracy': self.model.ValidAcc[-1]})
             
 
     def WandB_logs(self, TimeVec, Comp):
