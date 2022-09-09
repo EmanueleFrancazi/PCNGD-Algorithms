@@ -108,8 +108,8 @@ class DatasetMeanStd:
             self.train_data = datasets.MNIST(root = 'data_nobackup', train = True, download = True, transform = self.transform)
             self.test_data = datasets.MNIST(root = 'data_nobackup', train = False, download = True, transform = self.transform) 
         elif(self.DatasetName=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)
     #TODO: include also the option to calculate mean and std for test sets and MNIST dataset
     
     def Mean(self):
@@ -1885,9 +1885,9 @@ class DatasetTrial:
             self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
             self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
         elif(self.params['Dataset']=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform) 
-            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)            
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)            
         elif(self.params['Dataset']=='INATURALIST'):
             
             self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
@@ -2072,9 +2072,9 @@ class Bricks:
             self.test_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)
             self.valid_data = datasets.Places365(root = 'data_nobackup/Places365', train = False, download = True, transform = self.transform)           
         elif(self.params['Dataset']=='CIFAR100'):
-            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = False, transform = self.transform)
-            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform) 
-            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = False, transform = self.transform)            
+            self.train_data = datasets.CIFAR100(root = self.params['DataFolder'], train = True, download = True, transform = self.transform)
+            self.test_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = True, transform = self.transform) 
+            self.valid_data = datasets.CIFAR100(root = self.params['DataFolder'], train = False, download = True, transform = self.transform)            
         elif(self.params['Dataset']=='INATURALIST'):
             self.train_data = INaturalist(root = self.params['DataFolder'], version='2021_train_mini', target_type=self.params['label_type'], transform=self.transform, download=False)
             self.test_data = INaturalist(root = self.params['DataFolder'], version='2021_valid', target_type=self.params['label_type'], transform=self.transform, download=False) 

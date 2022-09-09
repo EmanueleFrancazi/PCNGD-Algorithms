@@ -34,11 +34,11 @@ do
 	#perform a nested loop with all the hyperparamater we want to perform, in this way:
 	#-if for a certain combination the simulation fails only that one is deprecated
 
-	for GF in 4 #4 #4 16 # 64 1 #16 #4 1
+	for GF in 4 16 #4 #4 16 # 64 1 #16 #4 1
 	do
 		for DP in -1 #0.2 0.4 # 0.2 0.4 #0.4 #0.2 0.4
 		do
-			for BS in 100 200  
+			for BS in 400  
 			do
 				for LR in 0.001 0.01      #1 0.1 0.01   
 				do
