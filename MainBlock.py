@@ -181,10 +181,10 @@ print("Using {} device".format(device))
 #for large dataset the run times can be very longs; we therefore define the flag variable Cheap_Mode 
 #the idea is to avoid the evaluation of training curves since in the valid phase we are interested in the performances of validation set
 #if Cheap_Mode=='ON' we don't evaluate the train performances, if instead Cheap_Mode=='OFF' we do it
-Cheap_Mode='ON'
+Cheap_Mode='OFF'
 
 # time parameters (run extention, number of points,...)
-n_epochs = 10 #8000#3000#400 # number of epochs to train the model
+n_epochs = 30 #8000#3000#400 # number of epochs to train the model
 epoch=0 #initialization of value of current epoch
 #we want to express the time in steps, not in epoch: Nbatch*Nepoch = Nsteps, with Nbatch = Nsamples/Batchsize (and the batch size is the one used in SGD at each gradient computation)
 
@@ -221,7 +221,7 @@ ValidMode = 'Test' #('Valid' or 'Test') #can be valid or test and selsct differe
 IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 1, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6, 'CIFAR100SC':0.85, 'INaturalist':1., 'CIFAR100':0.955} #IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
 
 
-Dynamic = 'PCNSGD+O' #algorithm selection 
+Dynamic = 'GD' #algorithm selection 
 
 FFCV_Mode = 'OFF' #this flag trigger the using of ffcv library to speed up the simulations (WARNING: feature not implemented yet, ignore it for now)
 
@@ -339,16 +339,16 @@ if args.DP < 0:
 #we first create the parameter folder
 FolderPath = './'+ args.FolderName +'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_size, group_factor, dropout_p)
 if not os.path.exists(FolderPath):
-    os.mkdir(FolderPath)         
+    os.makedirs(FolderPath, exist_ok=True)         
 #then we create the specific sample folder
 FolderPath = './'+ args.FolderName +'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_size, group_factor, dropout_p)  + '/Sample' + str(args.SampleIndex)
 print('La cartella creata per il sample ha come path: ', FolderPath)
 if not os.path.exists(FolderPath):
-    os.mkdir(FolderPath) 
+    os.makedirs(FolderPath, exist_ok=True) 
 
 DebugFolderPath = FolderPath + '/Debug'
 if not os.path.exists(DebugFolderPath):
-    os.mkdir(DebugFolderPath) 
+    os.makedirs(DebugFolderPath, exist_ok=True) 
 
 
 #I create the files where I store the outputs of the various prints
@@ -1829,62 +1829,64 @@ if (Dynamic=='PCNSGD+O'):
                     #HERE WE EVALUATE THE DETERMINISTIC VECTOR
                     #we evaluate the training and test set at the times corresponding to the logarithmic equispaced steps
                     #we start from the train set; in the eval mode we are not inerested in the weights' updates
-                    for EvalKey in NetInstance.TrainDL:
-                        SetFlag = 'Train' 
-                        for dataval,labelval in NetInstance.TrainDL[EvalKey]:
+                    if Cheap_Mode != 'ON':
                     
-                            Mask_Flag = 1
-                            
-                            dataval = dataval.double() 
-                            dataval = dataval.to(device)
-                            labelval = labelval.to(device) 
-        
-                            if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                        for EvalKey in NetInstance.TrainDL:
+                            SetFlag = 'Train' 
+                            for dataval,labelval in NetInstance.TrainDL[EvalKey]:
+                        
+                                Mask_Flag = 1
                                 
-                                NetInstance.DropoutBatchForward(dataval, Mask_Flag)
-                                Mask_Flag = 0
-                            else:
-                                NetInstance.BatchForward(dataval)
-                                
-                            NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
-
-                            #computation of quantity useful for precision accuracy,... measures
-                            NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
-                            #Store the last layer mean representation and per classes loss function
-                            #NOTE: TO CALCULATE LAST HIDDEN LAYER REPR. WE DIDN'T CALL AGAIN THE COMMAND .model(...). THIS WOULD HAVE PROPAGATED FOR A SECOND TIME THE SAME INPUT ACROSS THE NETWORK; DOING SO WE WASTE COMPUTATIONAL TIME AND WE INCREMENT FOR A SECOND TIME THE SAME GRADIENT VECTOR 
-                            #TO AVOID SO WE RECALL DIRECTLY THE DICT CREATED FROM THE FIRST FORWARDING (OutDict)
-                            NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
-
-                            
+                                dataval = dataval.double() 
+                                dataval = dataval.to(device)
+                                labelval = labelval.to(device) 
+            
+                                if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                                    
+                                    NetInstance.DropoutBatchForward(dataval, Mask_Flag)
+                                    Mask_Flag = 0
+                                else:
+                                    NetInstance.BatchForward(dataval)
+                                    
+                                NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
     
-                            NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
-                            NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
-                            NetInstance.optimizer.zero_grad()
+                                #computation of quantity useful for precision accuracy,... measures
+                                NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
+                                #Store the last layer mean representation and per classes loss function
+                                #NOTE: TO CALCULATE LAST HIDDEN LAYER REPR. WE DIDN'T CALL AGAIN THE COMMAND .model(...). THIS WOULD HAVE PROPAGATED FOR A SECOND TIME THE SAME INPUT ACROSS THE NETWORK; DOING SO WE WASTE COMPUTATIONAL TIME AND WE INCREMENT FOR A SECOND TIME THE SAME GRADIENT VECTOR 
+                                #TO AVOID SO WE RECALL DIRECTLY THE DICT CREATED FROM THE FIRST FORWARDING (OutDict)
+                                NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
+    
                                 
+        
+                                NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
+                                NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
+                                NetInstance.optimizer.zero_grad()
+                                    
+                            
+                            NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
+                            
+                            NetInstance.LastLayerRepresCompression()
+    
                         
-                        NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
+                        NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
                         
-                        NetInstance.LastLayerRepresCompression()
-
-                    
-                    NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
-                    
-                    """
-                    for index in range(0, NetInstance.model.num_classes):    
-                        ParCount = 0
-                        for p in NetInstance.model.parameters():                                                             
-                            NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
-                   
-                            NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
-                            ParCount+=1  
-                        NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
-                        
-                    print("LE NORME SONO", NetInstance.Norm)
-                    NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
-                    """
-
- 
-                    NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
+                        """
+                        for index in range(0, NetInstance.model.num_classes):    
+                            ParCount = 0
+                            for p in NetInstance.model.parameters():                                                             
+                                NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
+                       
+                                NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
+                                ParCount+=1  
+                            NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
+                            
+                        print("LE NORME SONO", NetInstance.Norm)
+                        NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
+                        """
+    
+     
+                        NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
 
                     for EvalKey in NetInstance.ValidDL:
                         SetFlag = 'Valid' 
@@ -1943,10 +1945,10 @@ if (Dynamic=='PCNSGD+O'):
                         NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)      
                     
                     NetInstance.UpdatePerformanceMeasures(NetInstance.params['TimesComponentCounter']) #ipdating of precision recall F1-measures
-                    
-                    NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
-                    
-                    NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
+                    if Cheap_Mode != 'ON':
+                        NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
+                        
+                        NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
 
                     #TENSORBOARD SUMMARY SAVING
                     NetInstance.SummaryScalarsSaving(Times, NetInstance.params['TimesComponentCounter'])
@@ -2081,9 +2083,6 @@ if (Dynamic=='SGD+O'):
             ClassesIterables[key] = iter(NetInstance.TrainDL[key])
         
         for data,label in NetInstance.TrainDL['Class0']: #we start taking, at each step the part of the batch of class 0 (since this is the only class that we necessary have(the label mapping follow growing order starting from 0))
-            
-            
-            
             
             
             batches_num +=1
@@ -2977,66 +2976,66 @@ if (Dynamic=='GD'):
                 #we evaluate the training and test set at the times corresponding to the logarithmic equispaced steps
                 #we start from the train set; in the eval mode we are not inerested in the weights' updates
                 
-                
-                for EvalKey in NetInstance.TrainDL:
-                    SetFlag = 'Train' 
-                    for dataval,labelval in NetInstance.TrainDL[EvalKey]:
-                
-                        Mask_Flag = 1
-                        
-                        dataval = dataval.double() 
-                        dataval = dataval.to(device)
-                        labelval = labelval.to(device) 
+                if Cheap_Mode != 'ON':
+                    for EvalKey in NetInstance.TrainDL:
+                        SetFlag = 'Train' 
+                        for dataval,labelval in NetInstance.TrainDL[EvalKey]:
+                    
+                            Mask_Flag = 1
+                            
+                            dataval = dataval.double() 
+                            dataval = dataval.to(device)
+                            labelval = labelval.to(device) 
+        
+                            if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                                
+                                NetInstance.DropoutBatchForward(dataval, Mask_Flag)
+                                Mask_Flag = 0
+                            else:
+                                NetInstance.BatchForward(dataval)
+                                
+                            NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
     
-                        if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                            #computation of quantity useful for precision accuracy,... measures
+                            NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
                             
-                            NetInstance.DropoutBatchForward(dataval, Mask_Flag)
-                            Mask_Flag = 0
-                        else:
-                            NetInstance.BatchForward(dataval)
                             
-                        NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
-
-                        #computation of quantity useful for precision accuracy,... measures
-                        NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
-                        
-                        
-                        #Store the last layer mean representation and per classes loss function
-                        
-                        #print("the dimension of the vector is", NetInstance.OutDict['l2'].size())
-                        NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
-
-                        
-
-                        NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
-                        NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
-                        NetInstance.optimizer.zero_grad()
+                            #Store the last layer mean representation and per classes loss function
                             
+                            #print("the dimension of the vector is", NetInstance.OutDict['l2'].size())
+                            NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
+    
+                            
+    
+                            NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
+                            NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
+                            NetInstance.optimizer.zero_grad()
+                                
+                        
+                        NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
+                        
+                        NetInstance.LastLayerRepresCompression()
+    
+                    NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
                     
-                    NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
+                    NetInstance.RAM_check(NetInstance.LineNumber())
                     
-                    NetInstance.LastLayerRepresCompression()
-
-                NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
-                
-                NetInstance.RAM_check(NetInstance.LineNumber())
-                
-                """
-                for index in range(0, NetInstance.model.num_classes):    
-                    ParCount = 0
-                    for p in NetInstance.model.parameters():                                                             
-                        NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
-               
-                        NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
-                        ParCount+=1  
-                    NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
-                    
-                print("LE NORME SONO", NetInstance.Norm)
-                NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
-                """
-
- 
-                NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
+                    """
+                    for index in range(0, NetInstance.model.num_classes):    
+                        ParCount = 0
+                        for p in NetInstance.model.parameters():                                                             
+                            NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
+                   
+                            NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
+                            ParCount+=1  
+                        NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
+                        
+                    print("LE NORME SONO", NetInstance.Norm)
+                    NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
+                    """
+    
+     
+                    NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
 
                 for EvalKey in NetInstance.ValidDL:
                     SetFlag = 'Valid' 
@@ -3099,10 +3098,10 @@ if (Dynamic=='GD'):
                 NetInstance.RAM_check(NetInstance.LineNumber())
                 
 
-
-                NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
-                
-                NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
+                if Cheap_Mode != 'ON':
+                    NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
+                    
+                    NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
 
                 #TENSORBOARD SUMMARY SAVING
                 NetInstance.SummaryScalarsSaving(Times, NetInstance.params['TimesComponentCounter'])
@@ -3340,62 +3339,63 @@ if (Dynamic=='PCNGD'):
                 #HERE WE EVALUATE THE DETERMINISTIC VECTOR
                 #we evaluate the training and test set at the times corresponding to the logarithmic equispaced steps
                 #we start from the train set; in the eval mode we are not inerested in the weights' updates
-                for EvalKey in NetInstance.TrainDL:
-                    SetFlag = 'Train' 
-                    for dataval,labelval in NetInstance.TrainDL[EvalKey]:
-                
-                        #Mask_Flag = 1
-                        
-                        dataval = dataval.double() 
-                        dataval = dataval.to(device)
-                        labelval = labelval.to(device) 
+                if Cheap_Mode != 'ON':
+                    for EvalKey in NetInstance.TrainDL:
+                        SetFlag = 'Train' 
+                        for dataval,labelval in NetInstance.TrainDL[EvalKey]:
+                    
+                            #Mask_Flag = 1
+                            
+                            dataval = dataval.double() 
+                            dataval = dataval.to(device)
+                            labelval = labelval.to(device) 
+        
+                            if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                                
+                                NetInstance.DropoutBatchForward(dataval, Mask_Flag)
+                                Mask_Flag = 0
+                            else:
+                                NetInstance.BatchForward(dataval)
+                                
+                            NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
     
-                        if NetInstance.params['NetMode']=='VGG_Custom_Dropout':
+                            #computation of quantity useful for precision accuracy,... measures
+                            NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
+                            #Store the last layer mean representation and per classes loss function
                             
-                            NetInstance.DropoutBatchForward(dataval, Mask_Flag)
-                            Mask_Flag = 0
-                        else:
-                            NetInstance.BatchForward(dataval)
+                            #ADAPT COMP. OF THE LAST LAYER TO THE CASE OF BATCHES (also remember the layer compression line).
+                            #print("the dimension of the vector is", NetInstance.OutDict['l2'].size())
+                            NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
+    
                             
-                        NetInstance.BatchEvalLossComputation(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag) #computation of the loss function and the gradient (with backward call)
-
-                        #computation of quantity useful for precision accuracy,... measures
-                        NetInstance.CorrectBatchGuesses(labelval, NetInstance.params['TimesComponentCounter']+1, SetFlag)
-                        #Store the last layer mean representation and per classes loss function
+    
+                            NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
+                            NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
+                            NetInstance.optimizer.zero_grad()
+                                
                         
-                        #ADAPT COMP. OF THE LAST LAYER TO THE CASE OF BATCHES (also remember the layer compression line).
-                        #print("the dimension of the vector is", NetInstance.OutDict['l2'].size())
-                        NetInstance.MeanRepresClass[labelval[0]].append(NetInstance.OutDict['l2'].clone().double())
-
+                        NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
                         
-
-                        NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
-                        NetInstance.GradCopyUpdate(labelval[0]) #again we select one of the label scalar; since all the element in the batch represent the same class they are all equivalent
-                        NetInstance.optimizer.zero_grad()
-                            
+                        NetInstance.LastLayerRepresCompression()
+    
+                    NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
                     
-                    NetInstance.optimizer.zero_grad()#putting gradient to 0 before filling it with the per class normalized sum
-                    
-                    NetInstance.LastLayerRepresCompression()
-
-                NetInstance.GradNorm(NetInstance.params['epoch']-StartEpoch)
-                
-                """
-                for index in range(0, NetInstance.model.num_classes):    
-                    ParCount = 0
-                    for p in NetInstance.model.parameters():                                                             
-                        NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
-               
-                        NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
-                        ParCount+=1  
-                    NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
-                    
-                print("LE NORME SONO", NetInstance.Norm)
-                NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
-                """
-
- 
-                NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
+                    """
+                    for index in range(0, NetInstance.model.num_classes):    
+                        ParCount = 0
+                        for p in NetInstance.model.parameters():                                                             
+                            NetInstance.GradCopy[index].append(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]))
+                   
+                            NetInstance.Norm[index] += (torch.norm(copy.deepcopy(NetInstance.NormGrad1Tot[0][index][ParCount]).cpu()*NetInstance.RoundSolveConst).detach().numpy())**2    
+                            ParCount+=1  
+                        NetInstance.Norm[index] = (NetInstance.Norm[index]**0.5)/NetInstance.RoundSolveConst
+                        
+                    print("LE NORME SONO", NetInstance.Norm)
+                    NetInstance.Wandb_Log_Grad_Overlap(Times[NetInstance.params['TimesComponentCounter']-1])                    
+                    """
+    
+     
+                    NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)                   
 
                 for EvalKey in NetInstance.ValidDL:
                     SetFlag = 'Valid' 
@@ -3452,10 +3452,12 @@ if (Dynamic=='PCNGD'):
                     NetInstance.LossAccAppend(NetInstance.params['TimesComponentCounter']+1, SetFlag)      
                 
                 NetInstance.UpdatePerformanceMeasures(NetInstance.params['TimesComponentCounter']) #ipdating of precision recall F1-measures
+
+                if Cheap_Mode != 'ON':
                 
-                NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
-                
-                NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
+                    NetInstance.ReprAngles(NetInstance.params['TimesComponentCounter']) #upd. the norm associated to the repres. vector (last layer state)
+                    
+                    NetInstance.GradientAngles(NetInstance.params['TimesComponentCounter'])   #compute angles between classes gradients
 
                 #TENSORBOARD SUMMARY SAVING
                 NetInstance.SummaryScalarsSaving(Times, NetInstance.params['TimesComponentCounter'])
