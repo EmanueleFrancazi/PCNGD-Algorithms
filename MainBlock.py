@@ -51,6 +51,8 @@ import CodeBlocks
 import random
 import sys
 
+import torch.multiprocessing as mp
+
 torch.set_printoptions(precision=17)
 
 #%% FLAG, MODES VARIABLES AND PARAMETERS
@@ -153,6 +155,9 @@ elif CheckMode=='OFF':
     
     FixSeed(seed)
     
+seed=10
+FixSeed(seed)
+
 
 StopFlag='OFF' #this flag active ('ON') or deactive ('OFF') the early stopping (at a time specified by variable 'StopPoint') to simulate an interruption (debug purpose)
 StopPoint = 30
@@ -167,7 +172,7 @@ NStepsComp = 10
 num_workers = 0 # 0 uses automatically the max number available
 #DEVICE CHOICE
 # Get cpu or gpu device for training throught the following flag variable (the choice can be either 'CPU' or 'GPU')
-Set_Device = 'GPU'
+Set_Device = 'CPU'
 #note: to use gpu you have to specify below the corresponding index in case of multiple choice: e.g. device = "cuda:1" will use the GPU with index "1" in the server
 
 if Set_Device=='CPU':
@@ -184,11 +189,11 @@ print("Using {} device".format(device))
 Cheap_Mode='OFF'
 
 # time parameters (run extention, number of points,...)
-n_epochs = 30 #8000#3000#400 # number of epochs to train the model
+n_epochs = 5 #8000#3000#400 # number of epochs to train the model
 epoch=0 #initialization of value of current epoch
 #we want to express the time in steps, not in epoch: Nbatch*Nepoch = Nsteps, with Nbatch = Nsamples/Batchsize (and the batch size is the one used in SGD at each gradient computation)
 
-NSteps = 15
+NSteps = 10
 
 #extention for autocorrelation observables
 Ntw = 10
@@ -218,10 +223,10 @@ ClassImbalance = 'ON' #can be set either 'OFF' or 'ON'. setting this flag 'ON' t
 MacroMode =  'CIFAR100'#'INaturalist' #'CIFAR100SC' #Set the desired configuration for the composition of the modified dataset. The selected classes (and their relative abboundance (in case of imbalance)) can be set by LM and IR dict (see below)
 ValidMode = 'Test' #('Valid' or 'Test') #can be valid or test and selsct different part of a separate dataset used only for testing/validating 
 
-IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 1, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6, 'CIFAR100SC':0.85, 'INaturalist':1., 'CIFAR100':0.955} #IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
+IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 1, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6, 'CIFAR100SC':0.85, 'INaturalist':1., 'CIFAR100':1.} #'CIFAR100':0.955} #IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
 
 
-Dynamic = 'GD' #algorithm selection 
+Dynamic = 'SGD+O' #algorithm selection 
 
 FFCV_Mode = 'OFF' #this flag trigger the using of ffcv library to speed up the simulations (WARNING: feature not implemented yet, ignore it for now)
 
@@ -494,7 +499,7 @@ TB_path = 'TensorBoard'+'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_s
 
 
     
-ProjName = 'Valid_CIfar100_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
+ProjName = 'MP_Valid_CIfar100_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
 GroupName = '/GaussInitAlg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode)#'/~Alg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode) #the group identifies the simulations we would like to average togheter for the representation
 RunName = '/Sample' + str(args.SampleIndex)#'/Sample' + str(args.SampleIndex)  #the run name identify the single run belonging to the above broad categories
 
@@ -534,7 +539,7 @@ wandb.config = {
   "Dataset":args.Dataset
 }
 
-NetInstance.StoringGradVariablesReset() #clear the gradient copy and Norm variable before initial state
+NetInstance.StoringGradVariablesInit() #clear the gradient copy and Norm variable before initial state
 
 
 start_time = time.time()
@@ -1665,10 +1670,7 @@ if (Dynamic=='PCNSGD+O'):
         print('i t sono: ', t, file = info)
         print('Correlation times matrix is: ', CorrTimes, file = info)
         
-        
-
     #%%% Saving Simulation ID
-    
     NetInstance.SimulationID()
     
     NumberOfTrainBatches = len(NetInstance.TrainDL['Class0'])
@@ -1679,7 +1681,6 @@ if (Dynamic=='PCNSGD+O'):
     for key in set(NetInstance.TrainDL) - {'Class0'}: #we use the set syntax to exclude some elements
         print("the number of batches in the {} are {} ".format(key, NumberOfTrainBatches), file = DebugFile)
      
-
     #%%% Training Start
     #we will use different dataloader for different classes; in particular, following the initial strategy used for the oversampled algorithms, in a single step we'll forward one batch from each class'dataloader
     for NetInstance.params['epoch'] in range (StartEpoch,n_epochs):
@@ -1711,10 +1712,6 @@ if (Dynamic=='PCNSGD+O'):
             ClassesIterables[key] = iter(NetInstance.TrainDL[key])
         
         for data,label in NetInstance.TrainDL['Class0']: #we start taking, at each step the part of the batch of class 0 (since this is the only class that we necessary have(the label mapping follow growing order starting from 0))
-            
-            
-            
-            
             
             batches_num +=1
             
@@ -1752,8 +1749,6 @@ if (Dynamic=='PCNSGD+O'):
             NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
             NetInstance.GradCopyUpdate(label[0]) #here I used "label[0]" because the label are all the same inside a class dataloader
             NetInstance.optimizer.zero_grad()
-
-
 
 
             #we pass now to all the remaining classes
@@ -2054,6 +2049,18 @@ if (Dynamic=='SGD+O'):
 
     #%%% Training Start
     #we will use different dataloader for different classes; in particular, following the initial strategy used for the oversampled algorithms
+
+
+
+    #before starting the training I define the list of arguments to use for the multiprocessing batch propagation
+    tasks_args = []
+    for key in set(NetInstance.TrainDL) - {'Class0'}: #we use the set syntax to exclude some elements
+        tasks_args.append([key, 1]) #set Mask_Flag because the mask in dropout change even for samples inside the same batch
+
+    num_processes = mp.cpu_count() #equals the number of processes in the pool to the number of physical cpus in the system
+    print('number of processes that will be used as number of processes for the multiprocessing branch: ', num_processes)
+
+
     for NetInstance.params['epoch'] in range (StartEpoch,n_epochs):
         
         True_FalseFile = open(DebugFolderPath + "/True_False.txt", "w")
@@ -2072,18 +2079,9 @@ if (Dynamic=='SGD+O'):
         print("THE NUMBER OF BATCHES IN THE EPOCH {} IS {}, WHILE THE TOTAL NUMBER OF BATCHES IN THE TRAIN LOADER IS {}".format(NetInstance.params['epoch'], batches_num,  len(NetInstance.TrainDL['Class0'])))        
         batches_num =0
         
-        #iterable must be called (generally speaking) at the right time:
-            #every time you call iter() you're reinit the list of batches:
-                #if the dataloader is defined with a fixed sampler (SequentialSampler) you get always the same batches' sequence (but you restart from the first one each time you use iter())
-                #if the dataloader is defined with a reshuffling (SubsetRandomSampler) you get a new batches' sequence  each time you use iter() (and each time you restart from the first batch of the sequence)
-        
-        
-        ClassesIterables = {} #we starting defining a dict of iterables
-        for key in set(NetInstance.TrainDL) - {'Class0'}: #we use the set syntax to exclude some elements
-            ClassesIterables[key] = iter(NetInstance.TrainDL[key])
-        
+        NetInstance.Reset_Classes_Iterables()
+
         for data,label in NetInstance.TrainDL['Class0']: #we start taking, at each step the part of the batch of class 0 (since this is the only class that we necessary have(the label mapping follow growing order starting from 0))
-            
             
             batches_num +=1
             
@@ -2098,7 +2096,6 @@ if (Dynamic=='SGD+O'):
             
             NetInstance.optimizer.zero_grad() # clear the gradients of all optimized variables
             
-
             #note you can use both NetInstance.optimizer.param_groups[0]['lr'] and NetInstance.optimizer.state_dict()['param_groups'][0]['lr'] to access the real value of the learning rate
             #but to modify it only NetInstance.optimizer.param_groups is valid
             for g in NetInstance.optimizer.param_groups: #FINE LR STEP-TUNING
@@ -2124,32 +2121,43 @@ if (Dynamic=='SGD+O'):
 
 
 
-            #we pass now to all the remaining classes
-            for key in set(NetInstance.TrainDL) - {'Class0'}: #we use the set syntax to exclude some elements
-                #for each class (except the 0 (already considered) we select a single batch from each class dataloader and repeat the above procedure)
-                try:
-                    img, lab = next(ClassesIterables[key])
-                except StopIteration:
-                    print("dataloaders in this alg. should reset all at once but for the {} the reset occurred while the 0 still had not finished epoch".format(key))
-                    ClassesIterables[key] = iter(NetInstance.TrainDL[key]) #when we finished the element of the dataset we reshouflle and restart with the new sequence
-                    img, lab = next(ClassesIterables[key])
-                img = img.double()
-                    
-                #load data on device
-                img = img.to(device)
-                lab = lab.to(device)                  
-                
-                NetInstance.optimizer.zero_grad() # clear the gradients of all optimized variables
 
-                if NetInstance.params['NetMode']=='VGG_Custom_Dropout':                    
-                    NetInstance.DropoutBatchForward(img, Mask_Flag)
-                    Mask_Flag = 0
-                else:
-                    NetInstance.BatchForward(img)
-                NetInstance.BatchEvalLossComputation(lab) #computation of the loss function and the gradient (with backward call)
-                NetInstance.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
-                NetInstance.GradCopyUpdate(lab[0]) #here I used "lab[0]" because the label are all the same inside a class dataloader
-                NetInstance.optimizer.zero_grad()
+
+
+
+            if device != 'cpu': #this line is necessary because CUDA multiprocessing doesn't work with the default fork 
+                mp.set_start_method('spawn', force=True)
+            
+            print('the copy of the gradient occupy ', sys.getsizeof(NetInstance.GradCopy)/1024. ,'Mb' )
+            #we need now to define the variable that we want to include into the shared memory 
+            #since we are using the torch.multiprocessing we will use the torch.tensor.share_memory_() method: this accept only tensors so if you have numpy array you have to convert them in tensor before
+            
+            for grad_tensor in NetInstance.GradCopy:
+                #print(grad_tensor)
+                #print(type(grad_tensor))
+                grad_tensor.share_memory_()
+            print('gradient of class', i, 'copied')
+            NetInstance.model.TrainClassesLoss.share_memory_()
+            NetInstance.model.ValidClassesLoss.share_memory_()
+            NetInstance.model.TestClassesLoss.share_memory_()
+            
+            #in order to have independent gradient for the different processes we have to deactivate the gradient before starting the processes, other wise it will be shared among the processes (source: https://github.com/pytorch/pytorch/issues/12202)
+            torch.set_grad_enabled(False)
+            
+            
+
+            if __name__ == '__main__': #is a foundamental step to include this line when we deal with multiprocessing
+                
+                with mp.Pool(num_processes) as pool: #we initialize with the pool instance
+                    pool.starmap(NetInstance.Single_Batch_Propagation , tasks_args)
+                    print('process concluted')
+                # close the process pool
+                pool.close()
+                # block until all tasks are complete and processes close
+                pool.join()                
+                
+            torch.set_grad_enabled(True)
+
 
             #SAVING THE WEIGHT AT tw (FOR THE CORRELATION COMPUTATION) this block we don't need to put it in the evaluation block because is about the weights, not the gradient (weights are not modified during evaluation procedures)
             if(SphericalConstrainMode=='ON'):
@@ -2169,8 +2177,9 @@ if (Dynamic=='SGD+O'):
                 if ((NetInstance.params['IterationCounter']) == Times[NetInstance.params['TimesComponentCounter']]):  
                     NetInstance.PerClassNormGradDistrSaving(Times, NetInstance.params['TimesComponentCounter'])
   
-            NetInstance.AssignNormalizedTotalGradient(NetInstance.params['epoch']-StartEpoch) #compute the gradient as sum of normalized class terms
-           
+                
+            NetInstance.Assign_Stored_Grad(NetInstance.params['epoch']-StartEpoch) #assign the computed gradient before the update step
+                       
             #NetInstance.PerClassMeanGradient(NetInstance.params['epoch']-StartEpoch) #compute the gradient as sum of averaged class terms (sum and division per number of class element)
            
             NetInstance.StepSize() #compute the step size associated to the batch

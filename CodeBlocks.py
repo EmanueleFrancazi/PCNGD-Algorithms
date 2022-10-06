@@ -572,10 +572,10 @@ class NetVariables:
                 self.StepGradientClassNorm = StepGradientClassNorm
             
             if TrainClassesLoss is None:
-                if (self.params['StartMode']=='BEGIN'):
-                    self.TrainClassesLoss = np.zeros((self.num_classes, (self.NSteps + 1)))
+                if (self.params['StartMode']=='BEGIN'):   #using tensor for the multiprocessing
+                    self.TrainClassesLoss = torch.zeros((self.num_classes, (self.NSteps + 1))) #np.zeros((self.num_classes, (self.NSteps + 1)))
                 elif (self.params['StartMode']=='RETRIEVE'):
-                    self.TrainClassesLoss = np.zeros((self.num_classes, (self.NSteps)))
+                    self.TrainClassesLoss = torch.zeros((self.num_classes, (self.NSteps))) #np.zeros((self.num_classes, (self.NSteps)))
             else:
                  self.TrainClassesLoss = TrainClassesLoss    
             
@@ -595,9 +595,9 @@ class NetVariables:
             
             if TestClassesLoss is None:
                 if (self.params['StartMode']=='BEGIN'):
-                    self.TestClassesLoss = np.zeros((self.num_classes, (self.NSteps + 1)))
+                    self.TestClassesLoss = torch.zeros((self.num_classes, (self.NSteps + 1)))  #np.zeros((self.num_classes, (self.NSteps + 1)))
                 elif (self.params['StartMode']=='RETRIEVE'):
-                    self.TestClassesLoss = np.zeros((self.num_classes, (self.NSteps)))
+                    self.TestClassesLoss = torch.zeros((self.num_classes, (self.NSteps)))      #np.zeros((self.num_classes, (self.NSteps)))
             else:
                  self.TestClassesLoss = TestClassesLoss    
             
@@ -611,9 +611,9 @@ class NetVariables:
             
             if ValidClassesLoss is None:
                 if (self.params['StartMode']=='BEGIN'):
-                    self.ValidClassesLoss = np.zeros((self.num_classes, (self.NSteps + 1)))
+                    self.ValidClassesLoss =  torch.zeros((self.num_classes, (self.NSteps + 1)))    #np.zeros((self.num_classes, (self.NSteps + 1)))
                 elif (self.params['StartMode']=='RETRIEVE'):
-                    self.ValidClassesLoss = np.zeros((self.num_classes, (self.NSteps)))
+                    self.ValidClassesLoss = torch.zeros((self.num_classes, (self.NSteps)))       #np.zeros((self.num_classes, (self.NSteps)))
             else:
                  self.ValidClassesLoss = ValidClassesLoss  
 
@@ -2163,8 +2163,9 @@ class Bricks:
                 #l0=int(900/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #just for debug purpose
                 
                 
-                l0 = int(len(self.trainTarget_idx)/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
+                #l0 = int(len(self.trainTarget_idx)/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
                 
+                l0=8
                 """
                 if(self.params['Dataset']=='INATURALIST'): #we fix the elements of the majority class to 50000 to reduce the imbalance and use the usual power law distribution
                     l0 = int(102400/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #we first compute the numbers of batches for the majority class and then reproduce for all the others in such a way they will have same number of batches but with a proportion set by self.TrainClassBS[classcounter-1]
@@ -2181,7 +2182,8 @@ class Bricks:
                     self.Validl0= int(20)
                 else:
                     self.validTarget_idx = (self.validtargets==key).nonzero()
-                    self.Validl0= int(len(self.validTarget_idx)/2) #should be less than 500 (since the total test set has 1000 images per class)                
+                    #self.Validl0= int(len(self.validTarget_idx)/2) #should be less than 500 (since the total test set has 1000 images per class)                
+                    self.Validl0= int(8)
                 #TEST
                 if (self.params['ValidMode']=='Test'): #if we are in testing mode we have to repeat it for a third dataset
                     if(self.params['Dataset']=='INATURALIST'):
@@ -2190,7 +2192,8 @@ class Bricks:
                         self.Testl0= int(20)    
                     else:
                         self.testTarget_idx = (self.testtargets==key).nonzero()
-                        self.Testl0= int(len(self.testTarget_idx)/2)  #should be less than 500 (since the total test set has 1000 images per class)
+                        #self.Testl0= int(len(self.testTarget_idx)/2)  #should be less than 500 (since the total test set has 1000 images per class)
+                        self.Testl0= int(8)
                 
                 if ClassTempVar in self.TrainIdx: #if the mapped class has already appeared, we concatenate the new indeces to the existing ones
                     self.TrainIdx['%s'%self.params['label_map'][key]] = torch.cat((self.TrainIdx['%s'%self.params['label_map'][key]], self.trainTarget_idx[:][0:self.Trainl0]),0)
@@ -2352,7 +2355,7 @@ class Bricks:
         self.MeanRepresClass = [[] for i in range(self.params['n_out'])]
         self.MRC = [[] for i in range(self.params['n_out'])]       
         self.EvaluationVariablesReset() #reset of temp evaluation variables
-        self.StoringGradVariablesReset()
+        self.StoringGradVariablesInit()
     
     def InitialState(self):
         """
@@ -2374,7 +2377,7 @@ class Bricks:
 
         self.EvaluationVariablesReset() #reset of temp evaluation variables
         #we evaluate the training set at the times before training starts
-        self.StoringGradVariablesReset()
+        self.StoringGradVariablesInit()
         
         for EvalKey in self.TrainDL:
             SetFlag = 'Train' 
@@ -2428,7 +2431,8 @@ class Bricks:
         print('initial loop on train set performed', flush=True)
             
         self.LossAccAppend(0, SetFlag)
-            
+
+        """ #block need to be substituted
         for index in range(0, self.model.num_classes):
             #compute the total loss function as the sum of all class losses
 
@@ -2441,7 +2445,7 @@ class Bricks:
                 self.model.StepGradientClassNorm[index][0] = self.Norm[index]
             else:
                 self.model.StepGradientClassNorm[index][0] = self.Norm[index]/len(self.TrainDL['Class0']) #normalize for the number of batches in the dataset since I am computing the gradient norm relative to a single step (note that I use the number of batches of the majority class (always mapped to 0))
-
+        """
         
         
         
@@ -2455,6 +2459,10 @@ class Bricks:
             AngleIndex+=1 
         """
 
+
+        
+
+        """ #block has to be substituted
         #gradient angles computation
         AngleIndex=0
         for i,j in((i,j) for i in range(self.model.num_classes) for j in range(i)):
@@ -2539,7 +2547,7 @@ class Bricks:
         #creation of a table
         self.Performance_data_table = wandb.Table(columns=self.Performance_columns, data=[copy.deepcopy(Performance_data)])
         self.Grad_data_table = wandb.Table(columns=self.Grad_columns, data=[copy.deepcopy(Grad_data)])        
-    
+        """
     
     
         for EvalKey in self.ValidDL:
@@ -2704,7 +2712,26 @@ class Bricks:
         self.Grad_data_table = wandb.Table(columns=self.Grad_columns)      
 
 
+    def StoringGradVariablesInit(self):
+        """
+        Init for the first time the gradient: we create a single copy of the gradient (not one for each class) in order to save memory (also because for the multiprocessing there is a max of shared memory segments (that you can access from the command ipcs -lm))
 
+        Returns
+        -------
+        None.
+
+        """
+        self.Norm = np.zeros(self.model.num_classes)
+        #self.GradCopy = [[] for i in range(self.model.num_classes)]
+        self.GradCopy = []
+        self.optimizer.zero_grad()
+        
+
+        if not self.GradCopy:
+            for p in self.model.parameters():   
+                #self.GradCopy[label].append(p.grad.clone().double()) #we copy the gradient with double precision (.double()) to prevent rounding error in case of very small numbers                           
+                self.GradCopy.append(torch.zeros_like(p))
+                
 
         
     #reset some variables used for temp storing of gradient information    
@@ -2718,7 +2745,13 @@ class Bricks:
 
         """
         self.Norm = np.zeros(self.model.num_classes)
-        self.GradCopy = [[] for i in range(self.model.num_classes)] 
+        #self.GradCopy = [[] for i in range(self.model.num_classes)]      #I want to have always a tensor in grapcopy (for each class); in this way I can store them in the shared memory during multiprocessing
+
+        ParCount=0
+        for obj in self.GradCopy:
+            self.GradCopy[ParCount] = torch.zeros_like(obj)
+            ParCount+=1
+    
             
     def CorrelationTempVariablesInit(self):
         """
@@ -3025,7 +3058,7 @@ class Bricks:
 
         """
         if SetFlag=='Train':
-            self.model.TrainLoss.append(np.sum(self.model.TrainClassesLoss, axis=0)[TimesComponentCounter] / self.TrainTotal)   
+            self.model.TrainLoss.append(torch.sum(self.model.TrainClassesLoss, 0)[TimesComponentCounter] / self.TrainTotal)   
             self.model.TrainAcc.append(100*self.TrainCorrect / self.TrainTotal)
                    
             for k in range(self.model.num_classes):
@@ -3033,7 +3066,7 @@ class Bricks:
                 self.model.TrainClassesLoss[k][TimesComponentCounter] = self.model.TrainClassesLoss[k][TimesComponentCounter]/self.SamplesClass[k]
                 print("Train Class Loss saved for class {} is {}".format(k, self.model.TrainClassesLoss[k][TimesComponentCounter]), file = self.params['EpochValues_file_object'])
         if SetFlag=='Test':
-            self.model.TestLoss.append( np.sum(self.model.TestClassesLoss, axis=0)[TimesComponentCounter]/ self.TestTotal) 
+            self.model.TestLoss.append( torch.sum(self.model.TestClassesLoss, 0)[TimesComponentCounter]/ self.TestTotal) 
             
             self.model.TestAcc.append(100*self.TestCorrect / self.TestTotal)
             
@@ -3043,7 +3076,7 @@ class Bricks:
                 self.model.TestClassesLoss[k][TimesComponentCounter] = self.model.TestClassesLoss[k][TimesComponentCounter]/self.TestSamplesClass[k]
                 print("Test Class Loss saved for class {} is {}".format(k, self.model.TestClassesLoss[k][TimesComponentCounter]), file = self.params['EpochValues_file_object'])
         if SetFlag=='Valid':
-            self.model.ValidLoss.append( np.sum(self.model.ValidClassesLoss, axis=0)[TimesComponentCounter]/ self.ValTotal) 
+            self.model.ValidLoss.append( torch.sum(self.model.ValidClassesLoss, 0)[TimesComponentCounter]/ self.ValTotal)   #self.model.ValidLoss.append( np.sum(self.model.ValidClassesLoss, axis=0)[TimesComponentCounter]/ self.ValTotal) 
             
             self.model.ValidAcc.append(100*self.ValCorrect / self.ValTotal)
             
@@ -3071,16 +3104,69 @@ class Bricks:
 
         """
         ParCount = 0
-        if not self.GradCopy[label]:
+        
+        if self.params['StochasticMode']=='OFF': #if we deal with a fully batch algorithm we normalize with the whole dataset size
+
+            for p in self.model.parameters(): 
+                self.GradCopy[ParCount] = self.GradCopy[ParCount].clone() + torch.div(p.grad.clone(), self.TrainTotal)#self.GradCopy[label][ParCount].clone() + p.grad.clone().double()
+                ParCount +=1
+        elif self.params['StochasticMode']=='ON':
+            for p in self.model.parameters(): 
+                self.GradCopy[ParCount] = self.GradCopy[ParCount].clone() + torch.div(p.grad.clone(), np.sum(self.TrainTotalClassBS))#self.GradCopy[label][ParCount].clone() + p.grad.clone().double()
+                ParCount +=1
+            
+
+
+    def NormGradCopyUpdate(self, label):
+        """
+        copy the gradient to a storing variable that will be used to implement the update prescribed by the algorithm
+
+        Parameters
+        ----------
+        label : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        #compute norm of the vector for the normalization
+        for obj in self.model.parameters(): 
+            self.Norm[label] += (torch.norm(obj.grad.cpu().clone()*self.RoundSolveConst).detach().numpy())**2
+
+        
+        
+        ParCount = 0
+        if not self.GradCopy:
             for p in self.model.parameters():   
                 #self.GradCopy[label].append(p.grad.clone().double()) #we copy the gradient with double precision (.double()) to prevent rounding error in case of very small numbers                           
-                self.GradCopy[label].append(p.grad.clone())
+                self.GradCopy.append(p.grad.clone())
                 
-        elif self.GradCopy[label]:
+        elif self.GradCopy[label]: #add the normalized per-class gradient 
             for p in self.model.parameters(): 
-                self.GradCopy[label][ParCount] = self.GradCopy[label][ParCount].clone() + p.grad.clone()#self.GradCopy[label][ParCount].clone() + p.grad.clone().double()
+                self.GradCopy[ParCount] = self.GradCopy[ParCount].clone() + torch.div(p.grad.clone(), ((self.Norm[label]**0.5)/self.RoundSolveConst))#self.GradCopy[label][ParCount].clone() + p.grad.clone().double()
                 ParCount +=1
+    
+    
+    
+    def Assign_Stored_Grad(self, TimeComp):
+        """
+        the grad is already processed in the methods NormGradCopyUpdate or GradCopyUpdate
+        In this method we copy the processed grad in the parameters().grad
 
+        Returns
+        -------
+        None.
+
+        """
+        ParCount = 0    
+        for p in self.model.parameters():
+            p.grad += self.GradCopy[ParCount]
+            ParCount +=1  
+        self.model.ClassesGradientNorm[TimeComp] += self.Norm #for the deterministic algorithm is rally the norm of a single step, while for the stoc. case is a sum over the different steps within the same epochs
+#TODO: change the definition of the ClassesGradientNorm; for example in the stochastic case would be better to put the average step Norm instead of the simple sum            
 
     def NormalizeGradVec(self):
         """
@@ -3404,7 +3490,6 @@ class Bricks:
                 for obj in self.GradCopy[index]:
                     self.NormGrad2[index].append(torch.div((obj.cpu().clone()*self.RoundSolveConst), (self.Grad2_Norm[index]+ 0.00000001)))
                 
-                
             self.NormGrad2Tot.append(copy.deepcopy(self.NormGrad2))
                 
 
@@ -3652,7 +3737,6 @@ class Bricks:
             if(TimeComp==0):
                 print(i,j, flush=True, file=self.params['info_file_object'])
             
-
             #calculate the cos(ang) as the scalar product normalized with the l2 norm of the vectors
             self.model.TrainAngles[AngleIndex][TimeComp+1] = math.acos(np.sum(np.multiply(self.MRC[i][0].cpu().detach().numpy()*self.RoundSolveConst, self.MRC[j][0].cpu().detach().numpy()*self.RoundSolveConst))/((self.model.RepresentationClassesNorm[i][TimeComp+1]*self.model.RepresentationClassesNorm[j][TimeComp+1]*self.RoundSolveConst*self.RoundSolveConst)+self.Epsilon))
             AngleIndex+=1 
@@ -3822,11 +3906,11 @@ class Bricks:
          
              
          with open(self.params['FolderPath'] + "/TrainClassesLoss.txt", "w") as f:
-             np.savetxt(f,  np.transpose(self.model.TrainClassesLoss), delimiter = ',')    
+             np.savetxt(f,  np.transpose(self.model.TrainClassesLoss.numpy()), delimiter = ',')    
          with open(self.params['FolderPath'] + "/TrainClassesAcc.txt", "w") as f:
              np.savetxt(f,  np.transpose(self.model.TrainClassesAcc) , delimiter = ',')   
          with open(self.params['FolderPath'] + "/ValidClassesLoss.txt", "w") as f:
-             np.savetxt(f,  np.transpose(self.model.ValidClassesLoss), delimiter = ',')               
+             np.savetxt(f,  np.transpose(self.model.ValidClassesLoss.numpy()), delimiter = ',')               
          with open(self.params['FolderPath'] + "/ValidClassesAcc.txt", "w") as f:
              np.savetxt(f,  np.transpose(self.model.ValidClassesAcc) , delimiter = ',')  
              
@@ -3839,7 +3923,7 @@ class Bricks:
                  np.savetxt(f, self.model.TestAcc, delimiter = ',')                      
              #per classes accuracy and loss for the test set (for now implemented only for the Gd and PCNGD)    
              with open(self.params['FolderPath'] + "/TestClassesLoss.txt", "w") as f:
-                 np.savetxt(f,  np.transpose(self.model.TestClassesLoss), delimiter = ',')       
+                 np.savetxt(f,  np.transpose(self.model.TestClassesLoss.numpy()), delimiter = ',')       
              with open(self.params['FolderPath'] + "/TestClassesAcc.txt", "w") as f:
                  np.savetxt(f,  np.transpose(self.model.TestClassesAcc) , delimiter = ',')  
           
@@ -4141,9 +4225,9 @@ class Bricks:
 
         """
         if self.params['ValidMode']=='Test':
-            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'test loss': np.sum(self.model.TestClassesLoss, axis=0)[-1], 'test accuracy': self.model.TestAcc[-1]})
+            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'test loss': np.sum(self.model.TestClassesLoss.numpy(), axis=0)[-1], 'test accuracy': self.model.TestAcc[-1]})
         else: 
-            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'valid loss': np.sum(self.model.ValidClassesLoss, axis=0)[-1], 'test accuracy': self.model.ValidAcc[-1]})
+            self.writer.add_hparams({'lr': lr, 'bsize': bs}, {'valid loss': np.sum(self.model.ValidClassesLoss.numpy(), axis=0)[-1], 'test accuracy': self.model.ValidAcc[-1]})
             
 
     def WandB_logs(self, TimeVec, Comp):
@@ -4536,17 +4620,67 @@ class Bricks:
         self.model.ClassesGradientNorm = np.concatenate((checkpoint['OldClassesGradientNorm'],self.model.ClassesGradientNorm), axis=0) #note that here we concatenate along axis 0 because order fo classes and times are reversed
         self.model.TrainLoss = checkpoint['OldTrainLoss'] #for list variable we don't need to concatenate, since there is no initaliazed vector (we build it concatenating measures time by time)
         self.model.TrainAcc = checkpoint['OldTrainAcc']
-        self.model.TrainClassesLoss = np.concatenate((checkpoint['OldTrainClassesLoss'],self.model.TrainClassesLoss), axis=1)
+        self.model.TrainClassesLoss = torch.from_numpy(np.concatenate((checkpoint['OldTrainClassesLoss'],self.model.TrainClassesLoss), axis=1))
         self.model.TrainClassesAcc = np.concatenate((checkpoint['OldTrainClassesAcc'],self.model.TrainClassesAcc), axis=1)
         self.model.ValidLoss = checkpoint['OldValidLoss']
         self.model.ValidAcc = checkpoint['OldValidAcc']
-        self.model.ValidClassesLoss = np.concatenate((checkpoint['OldValidClassesLoss'],self.model.ValidClassesLoss), axis=1)
+        self.model.ValidClassesLoss = torch.from_numpy(np.concatenate((checkpoint['OldValidClassesLoss'],self.model.ValidClassesLoss), axis=1))
         self.model.ValidClassesAcc = np.concatenate((checkpoint['OldValidClassesAcc'],self.model.ValidClassesAcc), axis=1)
         self.model.TestLoss = checkpoint['OldTestLoss']
         self.model.TestAcc = checkpoint['OldTestAcc']
-        self.model.TestClassesLoss = np.concatenate((checkpoint['OldTestClassesLoss'],self.model.TestClassesLoss), axis=1)
+        self.model.TestClassesLoss = torch.from_numpy(np.concatenate((checkpoint['OldTestClassesLoss'],self.model.TestClassesLoss), axis=1))
         self.model.TestClassesAcc = np.concatenate((checkpoint['OldTestClassesAcc'],self.model.TestClassesAcc), axis=1)
 
+
+
+    def Reset_Classes_Iterables(self):
+        """
+        #iterable must be called (generally speaking) at the right time:
+            #every time you call iter() you're reinit the list of batches:
+                #if the dataloader is defined with a fixed sampler (SequentialSampler) you get always the same batches' sequence (but you restart from the first one each time you use iter())
+                #if the dataloader is defined with a reshuffling (SubsetRandomSampler) you get a new batches' sequence  each time you use iter() (and each time you restart from the first batch of the sequence)
+        """
+        
+        self.ClassesIterables = {} #we starting defining a dict of iterables
+        for key in set(self.TrainDL) - {'Class0'}: #we use the set syntax to exclude some elements
+            self.ClassesIterables[key] = iter(self.TrainDL[key])
+
+
+    def Single_Batch_Propagation(self, key, Mask_Flag):
+        """
+        perform propagation of a single batch; translating this block in a function (method) allows to forward it in a parallel way using multiprocessing module (if)
+
+        Returns
+        -------
+        None.
+
+        """
+        torch.set_grad_enabled(True)
+        
+        #for each class (except the 0 (already considered) we select a single batch from each class dataloader and repeat the above procedure)
+        try:
+            img, lab = next(self.ClassesIterables[key])
+        except StopIteration:
+            print("dataloaders in this alg. should reset all at once but for the {} the reset occurred while the 0 still had not finished epoch".format(key))
+            self.ClassesIterables[key] = iter(self.TrainDL[key]) #when we finished the element of the dataset we reshouflle and restart with the new sequence
+            img, lab = next(self.ClassesIterables[key])
+        img = img.double()
+            
+        #load data on device
+        img = img.to(self.params['device'])
+        lab = lab.to(self.params['device'])                  
+        
+        self.optimizer.zero_grad() # clear the gradients of all optimized variables
+
+        if self.params['NetMode']=='VGG_Custom_Dropout':                    
+            self.DropoutBatchForward(img, Mask_Flag)
+            Mask_Flag = 0
+        else:
+            self.BatchForward(img)
+        self.BatchEvalLossComputation(lab) #computation of the loss function and the gradient (with backward call)
+        self.loss.backward()   # backward pass: compute gradient of the loss with respect to model parameters
+        self.GradCopyUpdate(lab[0]) #here I used "lab[0]" because the label are all the same inside a class dataloader
+        self.optimizer.zero_grad()
 
 
 
