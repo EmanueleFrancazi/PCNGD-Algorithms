@@ -1,14 +1,51 @@
 # Introduction
+
+## Notation
+
+We introduce the following notation that we will follow in the following sections:
+* $N_e$ : total number of simulation epochs
+* $N_c$ : number of classes
+* $\mathcal{D} = (\xi_i, y_i)_{i=1}^n$ : dataset
+* $\xi_i \in \mathbb{R}^d$ : input vector
+* $y_i \in  [0, \dots N_c - 1]$ : label 
+* $C_l = [ i \mid y_i = l ]$
+* $n$ : dataset size,i.e. the number of elements that makes up the dataset
+* $\gamma_t$: batch selected at step $t$
+* $|\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
+* $\eta$ : learning rate
+* $\boldsymbol{x}_t$ : set of network parameters at time $t$
+* $f(\boldsymbol{x}_t) \equiv \frac{1}{|\gamma_t|} \sum\_{i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : Average loss function calculated over all elements in the batch
+* $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\gamma_t|} \sum\_{i \in C_l, i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
+
+
 ## Content (in a nutshell)
 The goal of the repo is to provide codes needed to perform simulations on DNNs of some descent-based algorithms.
 More specifically you can find, implemented within it, some variants of (S)GD, and, in particular:
-* PCNGD
+* PCNGD.\
+The algorithm is as follows:
+
+    + Initialize $\boldsymbol{x}_0$
+    + for epoch $e \in [1, \dots, N_e]$
+        - divide the examples in the dataset according to their class
+        - Calculates the gradient associated with each class $l$ ( $\nabla f^{(l)}(\boldsymbol{x}_t)$ ) and its norm ( $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ )
+        - $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+
+        
+        
+
 * PCNSGD
+        - shuffle $\mathcal{D}$
+        - group the dataset into batches
+
 * PCNSGD+O
 * SGD+O
 * PCNSGD+R\
 In addition, vanilla versions of (S)GD are present.\
 The code is written in python and the reference library, used internally, to implement the networks and work with them is Pytorch.
+
+
+
+
 
 ## Structure
 
@@ -21,7 +58,6 @@ The program is launched by a ,command within the bash script "PythonRunManager.s
 The data for each replica, associated with a given set of parameters, are loaded, during the course of the simulation, into a folder that has the index of the replica in its name.
 
 ### Inteaction between MainBlock.py and CodeBlocks.py
-
 The methods in "CodeBlocks.py", called by "MainBlock.py" during the simulation, are enclosed in classes.
 The simulation starts by setting and defining some essential variables. That done, the DNN is generated as an instance of a class, through the command:\
 `NetInstance = CodeBlocks.Bricks(params)`.\
