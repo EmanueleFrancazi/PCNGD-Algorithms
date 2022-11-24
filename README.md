@@ -107,7 +107,7 @@ The algorithm is as follows:
 In addition, vanilla versions of (S)GD are present.\
 The code is written in python and the reference library, used internally, to implement the networks and work with them is Pytorch.
 
-the above pseudo-codes are intended to give a general idea of the operation of the various algorithms discussed. For the sake of clarity and compactness, some details in the implementation are not covered in this summary description; for example, for the **PCNSGD**, **PCNSGD+R** and **PCNSGD+O** algorithms we want to ensure that all classes are represented by at least one element in the batch. This can be ensured in several ways: for more details see **For class DataLoader**.
+the above pseudo-codes are intended to give a general idea of the operation of the various algorithms discussed. For the sake of clarity and compactness, some details in the implementation are not covered in this summary description; for example, for the **PCNSGD**, **PCNSGD+R** and **PCNSGD+O** algorithms we want to ensure that all classes are represented by at least one element in the batch. This can be ensured in several ways: for more details see **Per class DataLoader**.
 
 
 
