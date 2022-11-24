@@ -11,7 +11,7 @@ We introduce here the notation that will be employed in the following sections:
 * $\xi_i \in \mathbb{R}^d$ : input vector
 * $y_i \in  [0, \dots N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
 * $C_l =$ { $i \mid y_i = l$ } : subgroup of elements belonging to class $l$
-* $\mathcal{D}_l = (\xi_i, y_i)_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
+* $\mathcal{D}_l = (\xi_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
 * $n$ : dataset size,i.e. the number of elements that makes up the dataset
 * $\gamma_t$: batch selected at step $t$
 * $|\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
@@ -71,7 +71,7 @@ The algorithm is as follows:
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculates the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
+                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
             * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
 
 * **SGD+O**\
@@ -89,7 +89,7 @@ The algorithm is as follows:
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculates the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
+                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
             * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla f^{(l)}(\boldsymbol{x}_t) \right)$ 
 
 * **PCNSGD+R**\
