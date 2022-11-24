@@ -1,0 +1,8 @@
+matplotlib==3.6.0
+numpy==1.23.3
+psutil==5.9.2
+tensorboard==2.10.0
+torch==1.12.1
+torchvision==0.13.1
+wandb==0.13.3
+zipp==3.8.1

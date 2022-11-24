@@ -184,7 +184,7 @@ print("Using {} device".format(device))
 Cheap_Mode='OFF'
 
 # time parameters (run extention, number of points,...)
-n_epochs = 30 #8000#3000#400 # number of epochs to train the model
+n_epochs = 80 #8000#3000#400 # number of epochs to train the model
 epoch=0 #initialization of value of current epoch
 #we want to express the time in steps, not in epoch: Nbatch*Nepoch = Nsteps, with Nbatch = Nsamples/Batchsize (and the batch size is the one used in SGD at each gradient computation)
 
@@ -213,15 +213,17 @@ batches_num =0 #this variable counts the number of non-trashed batches (for exam
 #FLAG VARIABLES
 #SPERICAL CONSTRAIN FLAG; CAN BE ONLY ON OR OFF
 SphericalConstrainMode = 'OFF'  #(WARNING: feature not implemented yet, ignore it for now)
-ClassSelectionMode = 'OFF' #can be set either 'OFF' or 'ON'. setting this flag 'ON' to modify the default composition of a dataset (excluding some classes) 
+ClassSelectionMode = 'ON' #can be set either 'OFF' or 'ON'. setting this flag 'ON' to modify the default composition of a dataset (excluding some classes) 
 ClassImbalance = 'ON' #can be set either 'OFF' or 'ON'. setting this flag 'ON' to set imbalance ratio between classes of the dataset 
-MacroMode =  'CIFAR100'#'INaturalist' #'CIFAR100SC' #Set the desired configuration for the composition of the modified dataset. The selected classes (and their relative abboundance (in case of imbalance)) can be set by LM and IR dict (see below)
+MacroMode =  'ON'#'INaturalist' #'CIFAR100SC' #Set the desired configuration for the composition of the modified dataset. The selected classes (and their relative abboundance (in case of imbalance)) can be set by LM and IR dict (see below)
 ValidMode = 'Test' #('Valid' or 'Test') #can be valid or test and selsct different part of a separate dataset used only for testing/validating 
 
 IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 1, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6, 'CIFAR100SC':0.85, 'INaturalist':1., 'CIFAR100':0.955} #IR = {'ON': 1./60, 'OFF': 1./7, 'MULTI': 0.6, 'DH': 1./7, 'MultiTest': 1./3, '0_4': 0.6} #we define the dictionary IR to automatically associate the right imbalance ratio to the selected MacroMode
 
 
 Dynamic = 'GD' #algorithm selection 
+
+ReweightingMode = 'ON'  #if this flag is 'ON' the per class gradient (in GD and SGD) is divided by the number of elements belonging to the same class, in the training set
 
 FFCV_Mode = 'OFF' #this flag trigger the using of ffcv library to speed up the simulations (WARNING: feature not implemented yet, ignore it for now)
 
@@ -371,6 +373,8 @@ StepNorm =  open(FolderPath + "/StepNorm.txt", "a")
 memory_leak = open(DebugFolderPath + "/MemoryHistoryLog.txt", "a") 
 
 
+print("the reweighting mode  is: {}".format(ReweightingMode), flush=True, file = info)
+
 
     
 #%% CREATION OF THE CLASS INSTANCE REPRESENTING THE NETWORK
@@ -381,7 +385,7 @@ params = {'Dynamic': Dynamic,  'FolderPath': FolderPath,  'info_file_object' : i
           'ExecutionTimes_file_object' : ExecutionTimes,  'memory_leak_file_object': memory_leak,
           'CorrPrint_file_object' : CorrPrint, 'DebugFile_file_object' : DebugFile , 'WarningFile' : WarningFile, 
           'StepNorm_file_object' : StepNorm , 
-          'NetMode' : args.Architecture, 'ClassImbalance' : ClassImbalance , 'SphericalRegulizParameter' : SphericalRegulizParameter,
+          'NetMode' : args.Architecture, 'ClassImbalance' : ClassImbalance , 'ReweightingMode': ReweightingMode ,'SphericalRegulizParameter' : SphericalRegulizParameter,
           'DataFolder': args.DataFolder ,'ClassSelectionMode' : ClassSelectionMode, 'SphericalConstrainMode' : SphericalConstrainMode, 
           'CheckMode' : CheckMode, 'n_epochsComp':n_epochsComp, 'NStepsComp':NStepsComp,
           'n_out' : num_classes , 'label_map' : label_map , 'NSteps' : NSteps , 'n_epochs' : n_epochs, 
@@ -494,7 +498,7 @@ TB_path = 'TensorBoard'+'/lr_{}_Bs_{}_GF_{}_DP_{}'.format(learning_rate, batch_s
 
 
     
-ProjName = 'Valid_CIfar100_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
+ProjName = 'HP_Tuning_Reweight_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture) #'FINAL_Net_{}'.format(args.Architecture) #'OPTIM_Net_{}'.format(args.Architecture)  #'BALANCED_Test' #'MultiClass_Test'#'FINAL_Net_{}'.format(args.Architecture)#'MultiClass_Test' #'TestRetrieve' #'~~OPTIM_Net_CNN_Alg_PCNSGD+R'#'OPTIM_Net_{}'.format(args.Architecture) #  #~~F_Net_CNN_Alg_GD'  #'TestNewVersion' #'RETRIEVEProva'  #the project refers to all the simulations we would like to compare
 GroupName = '/GaussInitAlg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode)#'/~Alg_{}_ImbRatio_{}_lr_{}_Bs_{}_GF_{}_DP_{}_MacroMode_{}~'.format( Dynamic, UnbalanceFactor, learning_rate, batch_size, group_factor, dropout_p, MacroMode) #the group identifies the simulations we would like to average togheter for the representation
 RunName = '/Sample' + str(args.SampleIndex)#'/Sample' + str(args.SampleIndex)  #the run name identify the single run belonging to the above broad categories
 
@@ -807,7 +811,10 @@ if (Dynamic=='SGD'):
 
            
             #NetInstance.PerClassMeanGradient(NetInstance.params['epoch']-StartEpoch) #compute the gradient as sum of averaged class terms (sum and division per number of class element)
-            NetInstance.AssignNormalizedTotalGradient(NetInstance.params['epoch']-StartEpoch)
+            if NetInstance.params['ReweightingMode']=='ON':
+                NetInstance.AssignReweightedGradient(NetInstance.params['epoch']-StartEpoch)
+            else:
+                NetInstance.AssignNormalizedTotalGradient(NetInstance.params['epoch']-StartEpoch)
             
             NetInstance.StepSize() #compute the step size associated to the batch
 
@@ -2940,8 +2947,14 @@ if (Dynamic=='GD'):
 
            
         #NetInstance.PerClassMeanGradient(NetInstance.params['epoch']-StartEpoch) #compute the gradient as sum of averaged class terms (sum and division per number of class element)
-       
-        NetInstance.AssignNormalizedTotalGradient(NetInstance.params['epoch']-StartEpoch)
+
+        #NetInstance.PerClassMeanGradient(NetInstance.params['epoch']-StartEpoch) #compute the gradient as sum of averaged class terms (sum and division per number of class element)
+        if NetInstance.params['ReweightingMode']=='ON':
+            NetInstance.AssignReweightedGradient(NetInstance.params['epoch']-StartEpoch)
+        else:
+            NetInstance.AssignNormalizedTotalGradient(NetInstance.params['epoch']-StartEpoch)
+
+
         NetInstance.StepSize() #compute the step size associated to the batch
 
 

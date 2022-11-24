@@ -3148,6 +3148,59 @@ class Bricks:
                 ParCount +=1  
 
 
+    def AssignReweightedGradient(self, TimeComp):
+        """
+        Manually assign the gradient associated to self.model.parameters() with the normalized sum of classes gradients 
+
+        Parameters
+        ----------
+        TimeComp : int
+            index to save the class norm into an array
+
+        Returns
+        -------
+        None.
+
+        """
+        self.TotGrad = []
+        for index in range(0, self.model.num_classes):
+            #compute the total loss function as the sum of all class losses
+            TGComp=0
+            for obj in self.GradCopy[index]:
+                self.Norm[index] += (torch.norm(obj.cpu().clone()*self.RoundSolveConst).detach().numpy())**2
+                #filling the total gradient
+                if(index==0):
+                    self.TotGrad.append(obj.clone())
+                else:
+                    self.TotGrad[TGComp] += obj.clone()
+                    TGComp+=1
+
+            self.Norm[index] = self.Norm[index]**0.5/self.RoundSolveConst
+            ParCount = 0    
+            for p in self.model.parameters():
+                #CHOOSE ONE OF THE FOLLOWING NORMALIZATION PROCEDURE FOR THE GRADIENT
+                if self.params['StochasticMode']=='OFF': #if we deal with a fully batch algorithm we normalize with the whole dataset size
+                    p.grad += torch.div(self.GradCopy[index][ParCount].clone(), self.SamplesClass[index]) #normalize for the number of samples in the training set associated to the class we are passing
+                    #p.grad += torch.div(self.TotGrad[ParCount].clone(), (((self.total_norm**0.5)/self.RoundSolveConst) + 0.000001)) #normalize using the gradient l-2 norm (we add an infinitesimal regularizer to avoid the 0-division case)
+                    ParCount +=1  
+                elif self.params['StochasticMode']=='ON':#if we use a mini-batch algorithm we normalize by the batch size
+                    p.grad += torch.div(self.GradCopy[index][ParCount].clone(), np.sum(self.SamplesClass[index])) #normalize for the number of samples in the training set associated to the class we are passing
+                    #p.grad += torch.div(self.TotGrad[ParCount].clone(), (((self.total_norm**0.5)/self.RoundSolveConst) + 0.000001)) #normalize using the gradient l-2 norm (we add an infinitesimal regularizer to avoid the 0-division case)
+                    ParCount +=1  
+
+            
+            
+        self.model.ClassesGradientNorm[TimeComp] = self.Norm
+            
+        #calculating the total gradient norm
+        for obj in self.TotGrad:
+            self.total_norm += (torch.norm(obj.cpu().clone()).detach().numpy())**2   
+            #self.total_norm += (torch.norm(obj.cpu().clone()*self.RoundSolveConst).detach().numpy())**2     
+            
+        self.TotNormCopy = self.total_norm
+
+
+
     #reset some variables used for temp storing of gradient information    
     def StoringDATASET_GradReset(self):
         """
