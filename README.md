@@ -1,6 +1,6 @@
 # Content (in a nutshell)
 The repo contains codes to reproduce the results of the article [title and link of the paper available after publication]. \
-The necessary modules to be installed with their versions can be found in the requirements.txt file.
+The necessary modules to be installed with their versions can be found in the `requirements.txt` file.
 
 ## Notation
 
