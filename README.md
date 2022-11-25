@@ -12,7 +12,7 @@ We introduce here the notation that will be employed in the following sections:
 * $\mathcal{D} = (\xi_i, y_i)_{i=1}^n$ : dataset
 * $\xi_i \in \mathbb{R}^d$ : input vector
 * $y_i \in  [0, \dots N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
-* $C_l =$ { $i \mid y_i = l$ } : subgroup of elements belonging to class $l$
+* $C_l =$ { $i \mid y_i = l$ } : subgroup of indices belonging to class $l$
 * $\mathcal{D}_l = (\xi_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
 * $n$ : dataset size, i.e. the number of elements that makes up the dataset
 * $\gamma_t$: batch selected at step $t$
@@ -71,7 +71,7 @@ The algorithm is as follows:
         Since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\\{ \gamma_t^{(l)} \\}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class)
         - For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
             * For $l \in [0, \dots, N_c - 1]$
-                * If $i \\% N_b^{(l)} = 0$ (The condition indicates that we have iterated over all batches of the class $l$)
+                * If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
@@ -89,11 +89,11 @@ The algorithm is as follows:
         Since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\\{ \gamma_t^{(l)} \\}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class)
         - For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
             * For $l \in [0, \dots, N_c - 1]$
-                * If $i \\% N_b^{(l)} = 0$ (The condition indicates that we have iterated over all batches of the class $l$)
+                * If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
+                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ 
             * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla f^{(l)}(\boldsymbol{x}_t) \right)$ 
 
 * **PCNSGD+R**\
@@ -104,7 +104,7 @@ The algorithm is as follows:
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
         - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$ \
-         Per-class batch sizes are set by the imbalance ratio so that the number of per-class batches $N_b^{(l)}= N_b=|\\{ \gamma_t^{(l)} \\}|$  is the same $\forall l$
+         Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches $N_b^{(l)}= N_b=|\\{ \gamma_t^{(l)} \\}|$  is the same $\forall l$
         - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
             * For $l \in [0, \dots, N_c - 1]$ 
                 * Select the per-class batch  $\gamma_t^{(l)}$
@@ -152,15 +152,16 @@ _________________________________________
 
 As mentioned, the simulation is started through a bash script (`PythonRunManager.sh`). Within that script, some parameters are set. Specifically:
 * **FolderName** : is the name of the folder that will contain all the results of the execution.
-* **Dataset** : parameter that identifies the dataset to be used; at present the code accepts only CIFAR10 as dataset; to include other datasets (e.g. MNIST) some small changes are necessary because of the different data format.
+* **Dataset** : parameter that identifies the dataset to be used; at present the code accepts either CIFAR10 or CIFAR100 as dataset; to include other datasets (e.g. MNIST) some small changes are necessary because of the different data format.
 * **Architecture** : parameter that identifies the network to be used for the simulation: some option already available (see "DEFINE NN ARCHITECTURE" in CodeBlocks.py). Including an arbitrary architecture is very simple; just define the corresponding class and a name that identifies it as a parameter, following the example of the networks already present.
+* **DataFolder** : Path to the folder that contains the dataset to be used in the simulation
 * **LR** : the learning rate that will be used. It can be a single value or a set of values (which will be given one after the other)
 * **BS** : the batch size that will be used. Can be a single value or a set of values (which will be given one after another)
 * **GF** : This parameter sets the block size, for groupings operated in group norm layers. It can be a single value or a set of values (which will be given one after the other)
-* **DP** : Dropout probability. This parameter sets the probability of zeroing entries across dropout layers. It can be a single value or a set of values (which will be given one after the other) \
+* **DP** : Dropout probability. This parameter sets the probability of zeroing entries across dropout layers. It can be a single value or a set of values (which will be given one after the other) 
 
 For each of the above parameters, it is also possible to select more than one value. In this case, `i2`-`i2`+1 runs will be performed sequentially for each combination of the chosen parameters. For each run, the simulation is started, from the bash script, through the command: \
-`python3 MainBlock.py $i $FolderName $Dataset $Architecture $LR $BS $GF $DP` \
+`python3 MainBlock.py $i $FolderName $Dataset $Architecture $DataFolder $LR $BS $GF $DP` \
 The `MainBlock.py` script is thus called.
 
 ## `MainBlock.py`
@@ -192,5 +193,5 @@ Specifically, simulation results will be available in:
 ### Per class DataLoader
 In our experiments, it is essential to monitor individual class performance. Not only that; some of the algorithms also require the calculation of the gradient associated with each class. To facilitate this division we define a data loader associated with each class. We associate with the latter a batch size parameter set by the imbalance ratio (and by the oversampling strategy, if any, operated by the specific algorithm). To clarify this point, let us consider a practical example. \
 Let us imagine simulating PCNSGD (one of the available algorithms) with a binary dataset of 10000 images and an imbalance ratio of 9:1 (so 9000 images belonging to the majority class and 1000 to the minority class). Let us now assume that the **BS** parameter is equal to 100, for example. In this case, I will then proceed by defining two data loaders (one for each class) and defining in each of them a batch size parameter following the imbalance ratio. I will thus obtain 100 batches for the two data loaders with 90 and 10 elements in each batch, respectively.
-In this way, within each batch of a given data loader we will find only images belonging to the same class. We can at this point, at each step, propagate one batch for each class, save the gradient to an auxiliary variable, reset it, and finally proceed to update the network weights after all classes have propagated one of their batches. 
-Note that this approach also automatically ensures that each class is represented within the batch.
+In this way, within each batch of a given data loader we will find only images belonging to the same class. We can at this point, at each step, propagate one batch for each class, save the gradient to an auxiliary variable, reset it, and finally proceed to update the network weights after all classes have propagated one of their batches. \
+Note that this approach also automatically ensures that each class is represented within the batch. This on the other hand places a limit on the possible choice of batch sizes; in the previous example, for instance, we cannot choose a batch size smaller than 10 since we would end up with a different number of per-class batches for the two classes. In the case of a problematic choice of batch size, the program displays a message warning us of the problem.
