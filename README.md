@@ -1,6 +1,6 @@
 # Content (in a nutshell)
-**NOTE**: **Anonymous Github does not format text on markdown following GFM (GitHub Flavored Markdown)**. Therefore, there are minor differences from the formatting in the original repo (mainly the mathematical expressions are not shown properly but through the source code expression, not formatted). The file can be displayed properly by copying the source code on github.
-The final version on github will then not show the same problem.
+**NOTE**: **Anonymous Github does not format text on markdown following GFM (GitHub Flavored Markdown)**. Therefore, there are minor differences from the formatting in the original repo (mainly the mathematical expressions are not shown properly but through the source code expression, not formatted). **The file can be displayed properly by copying the source code on github.
+The final version on github will then not show the same problem.**
 
 The repo contains codes to reproduce the results of the article [title and link of the paper available after publication]. \
 The necessary modules to be installed with their versions can be found in the `requirements.txt` file.
