@@ -5,7 +5,7 @@ The necessary modules to be installed with their versions can be found in the `r
 ## Notation
 
 We introduce here the notation that will be employed in the following sections:
-* $|\cdot|$ : Cardinality of a set, i. e. the number of elements that make up the set
+* \\( |\cdot| \\) : Cardinality of a set, i. e. the number of elements that make up the set
 * $|\cdot|_2$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
