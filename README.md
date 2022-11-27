@@ -1,11 +1,14 @@
 # Content (in a nutshell)
+**NOTE**: **Anonymous Github does not format text on markdown following GFM (GitHub Flavored Markdown)**. Therefore, there are minor differences from the formatting in the original repo (mainly the mathematical expressions are not shown properly but through the source code expression, not formatted). The file can be displayed properly by copying the source code on github.
+The final version on github will then not show the same problem.
+
 The repo contains codes to reproduce the results of the article [title and link of the paper available after publication]. \
 The necessary modules to be installed with their versions can be found in the `requirements.txt` file.
 
 ## Notation
 
 We introduce here the notation that will be employed in the following sections:
-* \\( |\cdot| \\) : Cardinality of a set, i. e. the number of elements that make up the set
+* $|\cdot|$ : Cardinality of a set, i. e. the number of elements that make up the set
 * $|\cdot|_2$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
