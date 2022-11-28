@@ -107,7 +107,7 @@ The algorithm is as follows:
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
         - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$ \
-         Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches $N_b^{(l)}= N_b=|\\{ \gamma_t^{(l)} \\}|$  is the same $\forall l$
+         Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches $|\\{ \gamma_t^{(l)} \\}|N_b^{(l)}= N_b$  is the same $\forall l$
         - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
             * For $l \in [0, \dots, N_c - 1]$ 
                 * Select the per-class batch  $\gamma_t^{(l)}$
