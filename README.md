@@ -40,7 +40,7 @@ Recently, libraries ( [Opacus](https://openreview.net/pdf?id=EopKEYBoI-) and [fu
 The algorithm is as follows:
 
     + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
+    + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
         - Calculate the gradient associated with each class $l$ , $\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2$ 
         - $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)}{|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
@@ -52,7 +52,7 @@ The algorithm is as follows:
 The algorithm is as follows:
 
     + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
+    + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
         - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$.  
@@ -67,7 +67,7 @@ The algorithm is as follows:
 The algorithm is as follows:
 
     + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
+    + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
         - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$   using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$. \
@@ -85,10 +85,10 @@ The algorithm is as follows:
 The algorithm is as follows:
 
     + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
+    + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
-        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$   using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$. \ 
+        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$   using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$. \
         Since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\\{ \gamma_t^{(l)} \\}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class)
         - For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
             * For $l \in [0, \dots, N_c - 1]$
@@ -103,7 +103,7 @@ The algorithm is as follows:
 The algorithm is as follows:
 
     + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
+    + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
         - Shuffle $\\{ \mathcal{D}_l \\}$
         - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$ \
