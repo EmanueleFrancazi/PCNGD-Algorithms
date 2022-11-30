@@ -8,27 +8,33 @@ The necessary modules to be installed with their versions can be found in the `r
 ## Notation
 
 We introduce here the notation that will be employed in the following sections:
+
 * $|\cdot|$ : Cardinality of a set, i. e. the number of elements that make up the set
-* $|\cdot|_2$ : L2 Norm
+* $\lVert \cdot \rVert$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
-* $\mathcal{D} = (\xi_i, y_i)_{i=1}^n$ : dataset
-* $\xi_i \in \mathbb{R}^d$ : input vector
-* $y_i \in  [0, \dots N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
-* $C_l =$ { $i \mid y_i = l$ } : subgroup of indices belonging to class $l$
-* $\mathcal{D}_l = (\xi_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
+* $\mathcal{D} = (\boldsymbol{xi}_i, y_i)_{i=1}^n$ : dataset
+* $\boldsymbol{\xi}_i \in \mathbb{R}^d$ : input vector
+* $y_i \in  [0, \dots, N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
+* $C_l = \\{ i \mid y_i = l \\}$  : subgroup of indices belonging to class $l$
+* $\mathcal{D}_l = (\boldsymbol{\xi}_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
 * $n$ : dataset size, i.e. the number of elements that makes up the dataset
+* $n_l$ : Number of examples in the dataset belonging to class $l$
+* $\tilde n_l$ : Number of examples in the batch belonging to class $l$
 * $\gamma_t$: batch selected at step $t$
-* $|\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
-* $\\{ \gamma_t$ $\\}_e$: set of batches defined for the epoch $e$
+* $\tilde n = |\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
+* $\{ \gamma_t \}_e$: set of batches defined for the epoch $e$
 * $\eta_t$ : learning rate
 * $\boldsymbol{x}_t$ : set of network parameters at time $t$
-* $f(\boldsymbol{x}_t) \equiv \frac{1}{|\gamma_t|} \sum\_{i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : Average loss function calculated over all elements in the batch.\
- To emphasize the difference between full-batch and mini-batch cases, we introduce the symbol $f\_{FB}(\boldsymbol{x}_t)$ for the full-batch case, i. e. when $\gamma_t = \mathcal{D}$
-
-* $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\gamma_t|} \sum\_{i \in C_l, i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
-* $\\%$ : Modulo operator
+* $f(\boldsymbol{x}_t) = \frac{1}{|\mathcal{D}|} \sum\_{i \in \mathcal{D}} f_i(\boldsymbol{x}_t)$ : Average loss function calculated over all elements in the dataset.
+* $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\mathcal{D}|} \sum\_{ i \in C_l} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
+* $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ : is the gradient over a random batch of size $\tilde n$, for examples belonging to the class $l$
+* $\nabla f\_{\tilde n_l}^{(l)} (\boldsymbol{x}\_t) = \frac{1}{\tilde n_l} \sum\_{\substack{i \in C_l \\ i \in \gamma_t }} \nabla f_i (\boldsymbol{x}\_t)$ : Average gradient computed on the elements in the batch belonging to class $l$. Note that $\nabla f_{\tilde n_l}^{(l)}(\boldsymbol{x}_t)$ and $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ differ by only one factor in particular $\nabla f\_{\tilde n_l}^{(l)}(\boldsymbol{x}_t) = \frac{\tilde n}{\tilde n_l} \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$
+* $\%$ : Modulo operator
 * $\boldsymbol{v} \cdot \boldsymbol{w}$ : dot product 
+
+
+
 
 
 ## Description of the main Algorithms
@@ -42,8 +48,8 @@ The algorithm is as follows:
     + Initialize $\boldsymbol{x}_0$
     + Split the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
     + For epoch $e \in [1, \dots, N_e]$
-        - Calculate the gradient associated with each class $l$ , $\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2$ 
-        - $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)}{|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+        - Calculate the gradient associated with each class $l$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+        - $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
 
         
         
@@ -60,8 +66,8 @@ The algorithm is as follows:
         - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
             * For $l \in [0, \dots, N_c - 1]$ 
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+                * Calculate the gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
 
 * **PCNSGD+O** \
 The algorithm is as follows:
@@ -78,8 +84,8 @@ The algorithm is as follows:
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+                * Calculate the gradient associated to the selected per-class batch , $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
 
 * **SGD+O**\
 The algorithm is as follows:
@@ -96,8 +102,8 @@ The algorithm is as follows:
 
                     * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla f^{(l)}(\boldsymbol{x}_t) \right)$ 
+                * Calculate the gradient associated to the selected per-class batch , $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ 
+            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \right)$ 
 
 * **PCNSGD+R**\
 The algorithm is as follows:
@@ -111,11 +117,11 @@ The algorithm is as follows:
         - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
             * For $l \in [0, \dots, N_c - 1]$ 
                 * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the mini-batch gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-                * Calculate the full-batch per-class gradient associated with the entire dataset, $\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)$, and the corresponding norm $|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2$ 
-                * Compute $p_l = \left( \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right) \cdot \left( \frac{\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)}{|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2} \right)$
+                * Calculate the mini-batch gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+                * Calculate the full-batch per-class gradient associated with the entire dataset, $\nabla f^{(l)}(\boldsymbol{x}_t)$, and the corresponding norm $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+                * Compute $p_l = \left( \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right) \cdot \left( \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$
 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{p_l |\nabla f^{(l)}(\boldsymbol{x}_t) |_2 } \right)$ 
+            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{p_l \lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert } \right)$ 
 
 
 In addition, vanilla versions of (S)GD are present.\
