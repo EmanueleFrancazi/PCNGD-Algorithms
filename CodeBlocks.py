@@ -2139,6 +2139,12 @@ class Bricks:
             print("real size of the batch siz, e of the training set (after the roundings): {}".format(np.sum(self.TrainTotalClassBS)),flush=True, file = self.params['info_file_object']) 
             print("the total sizes of mapped classes are {}, the occourences {}".format(self.TrainTotalClassBS, self.params['MappedClassOcc']))
             
+            #check if some of the classes have a number of element inside the per-class batch lower than 1 (depending on the batch size and imbalance ratio chosen)
+            if not np.all(self.TrainTotalClassBS):
+                print("Warning: The selected imbalance ratio and batch size parameters are not compatibles to guarantees the presence of at least one element of the minority class in the batch; please either decrease the imbalance or increase the batch size")
+            
+            
+            
             MajorInputClassBS = np.amax(self.TrainClassBS) #we select here the class with greater element in the batch; that one will establish the bottle neck for the dataset, we assign to it the maximum possible number of element            
 
             self.traintargets = torch.tensor(self.train_data.targets) #convert label in tensors

@@ -1008,33 +1008,34 @@ class ConvNet(nn.Module, NetVariables, OrthoInit):
                 nn.MaxPool2d(kernel_size=2, stride=2))
             self.fc = nn.Linear(7*7*32, self.num_classes)
         elif  (self.params['Dataset']=='CIFAR10' or self.params['Dataset']=='INATURALIST' or self.params['Dataset']=='CIFAR100'):  
-            self.layer1 = nn.Sequential(
-                nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, stride=1, padding=2),
-                nn.ReLU(),
+            
+            self.l1=[nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, stride=1, padding=2)]
+            if self.params['IGB_flag'] == 'ON':
+                self.l1.append(nn.ReLU())
+                self.l1.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            elif self.params['IGB_flag'] == 'OFF':    
+                self.l1.append(nn.Tanh())
+                self.l1.append(nn.AvgPool2d(kernel_size=2, stride=2))     
                 
-                #nn.BatchNorm2d(16), #PUT BATCH NORM TO CONFIRM THAT THIS IS THE PROBLEM FOR VGG16
+            self.layer1 = nn.Sequential(*self.l1)
+            
+            self.l2=[nn.Conv2d(in_channels=16, out_channels=64, kernel_size=5, stride=1, padding=2)]
+            if self.params['IGB_flag'] == 'ON':
+                self.l2.append(nn.ReLU())
+                self.l2.append(nn.MaxPool2d(kernel_size=4, stride=4))
+            elif self.params['IGB_flag'] == 'OFF':    
+                self.l2.append(nn.Tanh())
+                self.l2.append(nn.AvgPool2d(kernel_size=4, stride=4))     
                 
-                #nn.GroupNorm(int(16/self.params['group_factor']), 16),                
-                
-                nn.MaxPool2d(kernel_size=2, stride=2))
-            self.layer2 = nn.Sequential(
-                nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2),
-                #nn.ReLU(),
-                nn.Tanh(),
-                
-                #nn.BatchNorm2d(32), #PUT BATCH NORM TO CONFIRM THAT THIS IS THE PROBLEM FOR VGG16
-                
-                #nn.GroupNorm(int(32/self.params['group_factor']), 32),
-                
-                #nn.MaxPool2d(kernel_size=2, stride=2)
-                #use avgpool and tanh to prevent the guess imbalance
-                nn.AvgPool2d(kernel_size=2, stride=2)
-                )
+            self.layer2 = nn.Sequential(*self.l2)
+            
+
+
             #note the difference in values from the MNIST case in the following line; it is due to the different image size
             #in fact, a generic image (regardless of the number of channels) with size X*Y changes its extension in the 2 directions in the following way:
             #In the convolutional layer: X -> 1+(X-kernel_size + 2*padding)/stride
             # In the pooling layer: X -> 1+(X-kernel_size)/stride
-            self.fc = nn.Linear(8*8*32, self.num_classes)                
+            self.fc = nn.Linear(4*4*64, self.num_classes)                
             
         self.initialize_weights() #calling the function below to initialize weights
         #self.weights_init() #call the orthogonal initial condition    
@@ -1047,7 +1048,7 @@ class ConvNet(nn.Module, NetVariables, OrthoInit):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
+                nn.init.kaiming_normal_(m.weight)
                 nn.init.constant_(m.bias, 0)
             
             
@@ -1065,7 +1066,114 @@ class ConvNet(nn.Module, NetVariables, OrthoInit):
         Out = L2.reshape(L2.size(0), -1)
         Out = self.fc(Out)
         outs['out'] = Out
+        outs['pred'] = torch.argmax(Out, dim=1)
         return outs
+
+
+
+
+
+
+
+
+
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride = 1, downsample = None):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Sequential(
+                        nn.Conv2d(in_channels, out_channels, kernel_size = 3, stride = stride, padding = 1),
+                        nn.BatchNorm2d(out_channels),
+                        nn.ReLU())
+        self.conv2 = nn.Sequential(
+                        nn.Conv2d(out_channels, out_channels, kernel_size = 3, stride = 1, padding = 1),
+                        nn.BatchNorm2d(out_channels))
+        self.downsample = downsample
+        self.relu = nn.ReLU()
+        self.out_channels = out_channels
+        
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.conv2(out)
+        if self.downsample:
+            residual = self.downsample(x)
+        out += residual
+        out = self.relu(out)
+        return out
+
+
+
+class ResNet(nn.Module, NetVariables):
+    def __init__(self, block, layers, params, num_classes = 10):
+        
+        self.params = params.copy()
+
+        nn.Module.__init__(self)
+        NetVariables.__init__(self, self.params)        
+        self.num_classes = num_classes
+        
+        #super(ResNet, self).__init__()
+        self.inplanes = 64
+        self.conv1 = nn.Sequential(
+                        nn.Conv2d(3, 64, kernel_size = 7, stride = 2, padding = 3),
+                        nn.BatchNorm2d(64),
+                        nn.ReLU())
+        self.maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2, padding = 1)
+        self.layer0 = self._make_layer(block, 64, layers[0], stride = 1)
+        self.layer1 = self._make_layer(block, 128, layers[1], stride = 2)
+        self.layer2 = self._make_layer(block, 256, layers[2], stride = 2)
+        self.layer3 = self._make_layer(block, 512, layers[3], stride = 2)
+        self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.fc = nn.Linear(512, num_classes)
+        
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes:
+            
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes, kernel_size=1, stride=stride),
+                nn.BatchNorm2d(planes),
+            )
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+    
+    
+    def forward(self, x):
+        outs = {}
+        
+        x = self.conv1(x)
+        x = self.maxpool(x)
+        x = self.layer0(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        x = self.avgpool(x)
+        outs['l2'] = x
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+
+        outs['out'] = x
+        outs['pred'] = torch.argmax(x, dim=1)
+        return outs
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1345,6 +1453,8 @@ class VGG_Custom_Dropout(nn.Module, NetVariables, OrthoInit):
 #note: as for batchNorm also GroupNorm require an input greater of size 1 to calculate a meaningful mean and std 
 #(since we have torch.nn.AdaptiveAvgPool2d(1) in ResNet this translate in self.params['group_factor']>1)
 
+
+"""
 class ResBlock(nn.Module, NetVariables):
     def __init__(self, in_channels, out_channels, params, downsample):
         
@@ -1440,7 +1550,7 @@ class ResNet18(nn.Module, NetVariables):
         
         return outs
 
-
+"""
 
 
 #Imagenet-LT dataset
@@ -1961,7 +2071,8 @@ class Bricks:
             self.model = VGG_Custom_Dropout(self.params)
         elif(self.params['NetMode']=='ResNet18'):  
             self.model = ResNet18(self.params, in_channels=3, resblock=ResBlock, outputs=self.params['n_out'])
-        
+        elif(self.params['NetMode']=='ResNet34'): 
+            self.model = ResNet(ResidualBlock, [3, 4, 6, 3], self.params, num_classes = self.params['n_out'])
             
         else:
             print('Architecture argument is wrong', file = self.params['WarningFile'])
@@ -2007,11 +2118,24 @@ class Bricks:
             self.transform = transforms.Compose([
                         transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
                         transforms.Normalize((0.), (1.))])     
-        elif(self.params['Dataset']=='CIFAR10'):    
-            self.transform = transforms.Compose([
-                    transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
-                    #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
-                    transforms.Normalize((0.49236655, 0.47394478, 0.41979155), (0.24703233, 0.24348505, 0.26158768))]) 
+        elif(self.params['Dataset']=='CIFAR10'): 
+            if (self.params['NetMode']=='ResNet34'): 
+                normalize = transforms.Normalize(
+                        mean=[0.4914, 0.4822, 0.4465],
+                        std=[0.2023, 0.1994, 0.2010],
+                    )
+                
+                # define transforms
+                self.transform = transforms.Compose([
+                        transforms.Resize((224,224)),
+                        transforms.ToTensor(),
+                        normalize,
+                ]) 
+            else:
+                self.transform = transforms.Compose([
+                        transforms.ToTensor(), #NOTE: Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+                        #NOTE: the standardization depend on the dataset that you use; if you use a subset of classes you have to calculate mean and std on the restricted dataset
+                        transforms.Normalize((0.49236655, 0.47394478, 0.41979155), (0.24703233, 0.24348505, 0.26158768))]) 
         elif(self.params['Dataset']=='Imagenet-LT'): 
             self.transform = transforms.Compose([
                 transforms.ToTensor(),
@@ -2152,8 +2276,8 @@ class Bricks:
                 #l0=int(900/MajorInputClassBS)*self.TrainClassBS[self.params['label_map'][key]] #just for debug purpose
                 
                 
-                l0 = int(len(self.trainTarget_idx)*self.params['ImabalnceProportions'][key])
-                
+                #l0 = int(len(self.trainTarget_idx)*self.params['ImabalnceProportions'][self.params['label_map'][key]])
+                l0 = 250
 
                 self.Trainl0 = l0
                 print("the number of elements selected by the class {} loaded on the trainset is {}".format(key, self.Trainl0),flush=True, file = self.params['info_file_object'])
