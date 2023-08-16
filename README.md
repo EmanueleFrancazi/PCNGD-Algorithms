@@ -1,31 +1,39 @@
 # Content (in a nutshell)
+
+
 The repo contains codes to reproduce the results of the article [title and link of the paper available after publication]. \
 The necessary modules to be installed with their versions can be found in the `requirements.txt` file.
 
 ## Notation
 
 We introduce here the notation that will be employed in the following sections:
+
 * $|\cdot|$ : Cardinality of a set, i. e. the number of elements that make up the set
-* $|\cdot|_2$ : L2 Norm
+* $\lVert \cdot \rVert$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
-* $\mathcal{D} = (\xi_i, y_i)_{i=1}^n$ : dataset
-* $\xi_i \in \mathbb{R}^d$ : input vector
-* $y_i \in  [0, \dots N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
-* $C_l =$ { $i \mid y_i = l$ } : subgroup of indices belonging to class $l$
-* $\mathcal{D}_l = (\xi_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
+* $\mathcal{D} = (\boldsymbol{xi}_i, y_i)_{i=1}^n$ : dataset
+* $\boldsymbol{\xi}_i \in \mathbb{R}^d$ : input vector
+* $y_i \in  [0, \dots, N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
+* $C_l = \\{ i \mid y_i = l \\}$  : subgroup of indices belonging to class $l$
+* $\mathcal{D}_l = (\boldsymbol{\xi}_i, y_i)\_{i \in C_l}$ : Subgroup of $\mathcal{D}$ elements belonging to class $l$
 * $n$ : dataset size, i.e. the number of elements that makes up the dataset
+* $n_l$ : Number of examples in the dataset belonging to class $l$
+* $\tilde n_l$ : Number of examples in the batch belonging to class $l$
 * $\gamma_t$: batch selected at step $t$
-* $|\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
-* $\\{ \gamma_t$ $\\}_e$: set of batches defined for the epoch $e$
+* $\tilde n = |\gamma_t|$ : batch size at step $t$; note that for full-batch algorithms (e.g. GD) $|\gamma_t|=n$ 
+* $\{ \gamma_t \}_e$: set of batches defined for the epoch $e$
 * $\eta_t$ : learning rate
 * $\boldsymbol{x}_t$ : set of network parameters at time $t$
-* $f(\boldsymbol{x}_t) \equiv \frac{1}{|\gamma_t|} \sum\_{i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : Average loss function calculated over all elements in the batch.\
- To emphasize the difference between full-batch and mini-batch cases, we introduce the symbol $f\_{FB}(\boldsymbol{x}_t)$ for the full-batch case, i. e. when $\gamma_t = \mathcal{D}$
-
-* $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\gamma_t|} \sum\_{i \in C_l, i \in \gamma_t} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
-* $\\%$ : Modulo operator
+* $f(\boldsymbol{x}_t) = \frac{1}{|\mathcal{D}|} \sum\_{i \in \mathcal{D}} f_i(\boldsymbol{x}_t)$ : Average loss function calculated over all elements in the dataset.
+* $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\mathcal{D}|} \sum\_{ i \in C_l} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
+* $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ : is the gradient over a random batch of size $\tilde n$, for examples belonging to the class $l$
+* $\nabla f\_{\tilde n_l}^{(l)} (\boldsymbol{x}\_t) = \frac{1}{\tilde n_l} \sum\_{\substack{i \in C_l \\ i \in \gamma_t }} \nabla f_i (\boldsymbol{x}\_t)$ : Average gradient computed on the elements in the batch belonging to class $l$. Note that $\nabla f_{\tilde n_l}^{(l)}(\boldsymbol{x}_t)$ and $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ differ by only one factor in particular $\nabla f\_{\tilde n_l}^{(l)}(\boldsymbol{x}_t) = \frac{\tilde n}{\tilde n_l} \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$
+* $\%$ : Modulo operator
 * $\boldsymbol{v} \cdot \boldsymbol{w}$ : dot product 
+
+
+
 
 
 ## Description of the main Algorithms
@@ -33,86 +41,114 @@ The goal of the repo is to provide codes needed to perform simulations on DNNs o
 You can find, implemented within it, some variants of (S)GD; for each of them below is pseudo-code to briefly illustrate how the algorithm works.
 **Some of the steps might seem cumbersome at first glance**, e.g. dividing the dataset by classes and then composing the batches. **However, this method was chosen to efficiently** ( thus avoiding micro-batching approaches, i.e., propagating samples one at a time) **isolate the gradient associated with individual classes**. This enables us to normalize the contributions of each class and combine them together according to the update rule.
 Recently, libraries ( [Opacus](https://openreview.net/pdf?id=EopKEYBoI-) and [functorch](https://pytorch.org/functorch/stable/notebooks/per_sample_grads.html) ) have been introduced that would allow a more streamlined implementation of the code while still avoiding micro-batching approaches.
-* **PCNGD** \
-The algorithm is as follows:
 
-    + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
-    + For epoch $e \in [1, \dots, N_e]$
-        - Calculate the gradient associated with each class $l$ , $\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2$ 
-        - $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)}{|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+### PCNGD
 
+
+---
+ **Algorithm: PCNGD** 
+---
+1. Initialize $\boldsymbol{x}_0$
+2.  Split $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$
+3. For epoch $e \in [1, \dots, N_e]$
+   1. Calculate  $\nabla f^{(l)}(\boldsymbol{x}_t)$ and  $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+   2. $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
+---
+
+After initializing the network weights, $\boldsymbol{x}_0$ , (line 1 in **Algorithm: PCNGD**) we split the examples of the dataset according to their
+class (line 2 in **Algorithm: PCNGD**). For each epoch we calculate the gradient associated with the individual classes and the
+corresponding norm (line 3.i in **Algorithm: PCNGD**). Finally, we use the calculated quantities to perform the update rule (line 3.ii in
+**Algorithm: PCNGD**).      
         
         
+### PCNSGD 
 
-* **PCNSGD** \
-The algorithm is as follows:
+---
+ **Algorithm: PCNSGD** 
+---
+1. Initialize $\boldsymbol{x}_0$
+2. Split $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ 
+3. For epoch $e \in [1, \dots, N_e]$
+   1. Shuffle $\\{ \mathcal{D}_l \\}$
+   2. Group $\\{ \mathcal{D}_l \\}$ into $\\{ \gamma_t^{(l)}$ $\\}_e$.  
+   3. For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
+      1. For $l \in [0, \dots, N_c - 1]$ 
+         1. Select   $\gamma_t^{(l)}$
+         2. Calculate  $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ and $\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+      2. $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
+---
 
-    + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
-    + For epoch $e \in [1, \dots, N_e]$
-        - Shuffle $\\{ \mathcal{D}_l \\}$
-        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$.  
-        Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches is the same $\forall l$, i.e. $|\\{ \gamma_t^{(l)} \\}|=N_b^{(l)}= N_b$
-        - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
-            * For $l \in [0, \dots, N_c - 1]$ 
-                * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+After initializing the network weights, $\boldsymbol{x}_0$ , (line 1 in **Algorithm: PCNSGD**) we split the examples of the dataset according to their class (line 2 in **Algorithm: PCNSGD**). At the beginning of each epoch we shuffle the elements of each subgroup (line 3.ii in **Algorithm: PCNSGD**) and group them into per-class batches (line 3.ii in **Algorithm: PCNSGD**). Note that the per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches is the same $\forall l$, i.e. $|\{ \gamma_t^{(l)} \}|=N_b^{(l)}= N_b$. \newline
+At each step we then select a per-class batch (line 3.iii.a.a in **Algorithm: PCNSGD**) and calculate the gradient associated with it and its norm (line 3.iii.a.b in  **Algorithm: PCNSGD**). Finally, we use the calculated quantities to apply the update rule on the network weights (line 3.iii.b in  **Algorithm: PCNSGD**).
 
-* **PCNSGD+O** \
-The algorithm is as follows:
 
-    + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
-    + For epoch $e \in [1, \dots, N_e]$
-        - Shuffle $\\{ \mathcal{D}_l \\}$
-        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$   using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$. \
-        Since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\\{ \gamma_t^{(l)} \\}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class)
-        - For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
-            * For $l \in [0, \dots, N_c - 1]$
-                * If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
 
-                    * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
-                * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right)$ 
+---
+ **Algorithm: PCNSGD+O** 
+---
+1. Initialize $\boldsymbol{x}_0$
+2. Split $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$
+3. For epoch $e \in [1, \dots, N_e]$
+   1. Shuffle $\\{ \mathcal{D}_l \\}$
+   2. Group $\\{ \mathcal{D}_l \\}$ into $\\{ \gamma_t^{(l)}$ $\\}_e$  
+   3. For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
+      1. For $l \in [0, \dots, N_c - 1]$
+         1. If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
+            1. Regroup $\mathcal{D}_l$ into per-class batches
+         2. Select $\gamma_t^{(l)}$
+         3. Calculate $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ and $\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+      2. $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$ 
+---
 
-* **SGD+O**\
-The algorithm is as follows:
+After initializing the network weights, $\boldsymbol{x}_0$ , (line 1 in  **Algorithm: PCNSGD+O**) we split the examples of the dataset according to their class (line 2 in **Algorithm: PCNSGD+O**). At the beginning of each epoch we shuffle the elements of each subgroup (line 3.i in **Algorithm: PCNSGD+O**) and group them into per-class batches using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$ (line 3.ii in **Algorithm: PCNSGD+O**). Note that since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\{ \gamma_t^{(l)} \}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class). \newline 
+At each step we iterate along the classes.
+For each of them we check that per-classes batches are still available to use as input; if the per-class batches associated with a class $l$ are finished we shuffle the elements into the subgroup $\mathcal{D}_l$ and define a new set of per-class-batches $\{ \gamma_l \}$ (line 3.iii.a.a.a in **Algorithm: PCNSGD+O**) as done (for each class) at the beginning of the epoch. After this check we then select a per-class batch $\gamma_l$ (line 3.iii.a.b in **Algorithm: PCNSGD+O**).
+We calculate the gradient associated with it and its norm (line 3.iii.a.c in **Algorithm: PCNSGD+O**). Finally, we use the calculated quantities to apply the update rule on the network weights (line 3.iii.b in **Algorithm: PCNSGD+O**).
 
-    + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
-    + For epoch $e \in [1, \dots, N_e]$
-        - Shuffle $\\{ \mathcal{D}_l \\}$
-        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$   using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$. \ 
-        Since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\\{ \gamma_t^{(l)} \\}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class)
-        - For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
-            * For $l \in [0, \dots, N_c - 1]$
-                * If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
 
-                    * Regroup $\mathcal{D}_l$ into batches as done at the beginning of the epoch
-                * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the gradient associated to the selected per-class batch , $\nabla f^{(l)}(\boldsymbol{x}_t)$ 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla f^{(l)}(\boldsymbol{x}_t) \right)$ 
 
-* **PCNSGD+R**\
-The algorithm is as follows:
+---
+ **Algorithm: SGD+O**
+---
+1. Initialize $\boldsymbol{x}_0$
+2. Split $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$
+3. For epoch $e \in [1, \dots, N_e]$
+   1. Shuffle $\\{ \mathcal{D}_l \\}$
+   2. Group $\\{ \mathcal{D}_l \\}$ into $\\{ \gamma_t^{(l)}$ $\\}_e$  
+   3. For $i \in [1, \dots, N_b^{(0)}]$ (Iterate over the majority class batch index)
+      1. For $l \in [0, \dots, N_c - 1]$
+         1. If $i \\% N_b^{(l)} = 0$ (This indicates that we have iterated over all batches of the class $l$)
+            1. Regroup $\mathcal{D}_l$ into per-class batches
+         2. Select $\gamma_t^{(l)}$
+         3. Calculate $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ 
+      2. $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \right)$ 
+---
+After initializing the network weights, $\boldsymbol{x}_0$ , (line 1 in Algorithm **Algorithm: SGD+O**) we split the examples of the dataset according to their class (line 2 in **Algorithm: SGD+O**). At the beginning of each epoch we shuffle the elements of each subgroup (line 3.i in **Algorithm: SGD+O**) and group them into per-class batches using the same per-class batch size, $|\gamma_t^{(l)}|= |\gamma_t|$  $\forall l$ (line 3.ii in **Algorithm: SGD+O**). Note that since different classes have a different number of elements, $| \mathcal{D}_l|$, we will get a different number of batches for each of them: $|\{ \gamma_t^{(l)} \}| = N_b^{(l)}$, with $N_b^{(0)} = \max_l N_b^{(l)}$ (" $0$ " is the label of the majority class). \newline 
+At each step we iterate along the classes.
+ For each of them we check that per-classes batches are still available to use as input; if the per-class batches associated with a class $l$ are finished we shuffle the elements into the subgroup $\mathcal{D}_l$ and define a new set of per-class-batches $\{ \gamma_l \}$ (line 3.iii.a.a.a in **Algorithm: SGD+O**) as done (for each class) at the beginning of the epoch. After this check we then select a per-class batch $\gamma_l$ (line 3.iii.a.b in **Algorithm: SGD+O**).
+We calculate the gradient associated with it (line 3.iii.a.c in **Algorithm: SGD+O**). Finally, we use the calculated quantities to apply the update rule on the network weights (line 3.iii.b in **Algorithm: SGD+O**).
 
-    + Initialize $\boldsymbol{x}_0$
-    + Divide the examples in $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$ according to their class
-    + For epoch $e \in [1, \dots, N_e]$
-        - Shuffle $\\{ \mathcal{D}_l \\}$
-        - Group $\\{ \mathcal{D}_l \\}$ into per-class batches $\\{ \gamma_t^{(l)}$ $\\}_e$ \
-         Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches $N_b^{(l)}= N_b=|\\{ \gamma_t^{(l)} \\}|$  is the same $\forall l$
-        - For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
-            * For $l \in [0, \dots, N_c - 1]$ 
-                * Select the per-class batch  $\gamma_t^{(l)}$
-                * Calculate the mini-batch gradient associated with the elements of $\gamma_t^{(l)}$ , $\nabla f^{(l)}(\boldsymbol{x}_t)$ , and its norm , $|\nabla f^{(l)}(\boldsymbol{x}_t) |_2$ 
-                * Calculate the full-batch per-class gradient associated with the entire dataset, $\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)$, and the corresponding norm $|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2$ 
-                * Compute $p_l = \left( \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{|\nabla f^{(l)}(\boldsymbol{x}_t) |_2} \right) \cdot \left( \frac{\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t)}{|\nabla f\_{FB}^{(l)}(\boldsymbol{x}_t) |_2} \right)$
+---
+ **Algorithm: PCNSGD+R**
+---
+1. Initialize $\boldsymbol{x}_0$
+2. Split $\mathcal{D}$ into subgroups $\\{ \mathcal{D}_l \\}$
+3. For epoch $e \in [1, \dots, N_e]$
+   1. Shuffle $\\{ \mathcal{D}_l \\}$
+   2. Group $\\{ \mathcal{D}_l \\}$ into $\\{ \gamma_t^{(l)}$ $\\}_e$ 
+   3. For $i \in [1, \dots, N_b]$ (Iterate over the batch index)
+      1. For $l \in [0, \dots, N_c - 1]$ 
+         1. Select $\gamma_t^{(l)}$
+         2. Calculate $\nabla f^{(l)}(\boldsymbol{x}_t)$ and $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+         3. Calculate $\nabla f^{(l)}(\boldsymbol{x}_t)$ and $\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert$ 
+         4. Compute $p_l = \left( \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert} \right) \cdot \left( \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{\lVert \nabla f^{(l)}(\boldsymbol{x}_t) \rVert} \right)$
+      2. $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)}{p_l \lVert \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t) \rVert } \right)$ 
+---
+After initializing the network weights, $\boldsymbol{x}_0$ , (line 1 in **Algorithm: PCNSGD+R**) we split the examples of the dataset according to their class (line 2 in **Algorithm: PCNSGD+R**). At the beginning of each epoch we shuffle the elements of each subgroup (line 3.i in **Algorithm: PCNSGD+R**) and group them into per-class batches (line 3.ii in **Algorithm: PCNSGD+R**). Note that Per-class batch sizes are set by the imbalance ratio; consequently the number of per-class batches $| \{ \gamma_t^{(l)} \}|=N_b^{(l)}= N_b$  is the same $\forall l$. \newline
+At each step, for each class, we then select a per-class batch (line 3.iii.a.a in **Algorithm: PCNSGD+R**) and calculate the gradient associated with it and its norm (line 3.iii.a.b in **Algorithm: PCNSGD+R**).
+Next, we calculate the per-class gradient associated with the entire dataset and its norm (line 3.iii.a.c in **Algorithm: PCNSGD+R**). We then calculate the projections of the normalized mini-batch gradients along the corresponding full-batch directions (line 3.iii.a.d in **Algorithm: PCNSGD+R**). 
+Finally, we use the calculated quantities to apply the update rule on the network weights (line 3.iii.b in **Algorithm: PCNSGD+R**).
 
-            * $\boldsymbol{x}\_{t+1} = \boldsymbol{x}_t -\eta_t \left( \sum_l \frac{\nabla f^{(l)}(\boldsymbol{x}_t)}{p_l |\nabla f^{(l)}(\boldsymbol{x}_t) |_2 } \right)$ 
 
 
 In addition, vanilla versions of (S)GD are present.\
