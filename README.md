@@ -1,7 +1,8 @@
-# Content (in a nutshell)
+# A Theoretical Analysis of the Learning Dynamics under Class Imbalance
 
+This repository contains the code necessary to reproduce the results presented in the paper:
 
-The repo contains codes to reproduce the results of the article [title and link of the paper available after publication]. \
+**Title:** [A Theoretical Analysis of the Learning Dynamics under Class Imbalance](https://arxiv.org/pdf/2207.00391) \
 The necessary modules to be installed with their versions can be found in the `requirements.txt` file.
 
 ## Notation
