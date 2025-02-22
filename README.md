@@ -13,7 +13,7 @@ We introduce here the notation that will be employed in the following sections:
 * $\lVert \cdot \rVert$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
-* $\mathcal{D} = (\boldsymbol{xi}_i, y_i)_{i=1}^n$ : dataset
+* $\mathcal{D} = (\boldsymbol{xi}_i, y_i)\_{i=1}^n$ : dataset
 * $\boldsymbol{\xi}_i \in \mathbb{R}^d$ : input vector
 * $y_i \in  [0, \dots, N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
 * $C_l = \\{ i \mid y_i = l \\}$  : subgroup of indices belonging to class $l$
@@ -30,8 +30,8 @@ We introduce here the notation that will be employed in the following sections:
 * $f^{(l)}(\boldsymbol{x}_t) = \frac{1}{|\mathcal{D}|} \sum\_{ i \in C_l} f_i(\boldsymbol{x}_t)$ : contribution to $f(\boldsymbol{x}_t)$ from class $l$
 * $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ : is the gradient over a random batch of size $\tilde n$, for examples belonging to the class $l$
 * $\nabla f\_{\tilde n_l}^{(l)} (\boldsymbol{x}\_t) = \frac{1}{\tilde n_l} \sum\_{\substack{i \in C_l \\ i \in \gamma_t }} \nabla f_i (\boldsymbol{x}\_t)$ : Average gradient computed on the elements in the batch belonging to class $l$. Note that $\nabla f_{\tilde n_l}^{(l)}(\boldsymbol{x}_t)$ and $\nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$ differ by only one factor in particular $\nabla f\_{\tilde n_l}^{(l)}(\boldsymbol{x}_t) = \frac{\tilde n}{\tilde n_l} \nabla\_{\tilde n} f^{(l)}(\boldsymbol{x}_t)$
-* $\%$ : Modulo operator
-* $\boldsymbol{v} \cdot \boldsymbol{w}$ : dot product 
+* $\\%$ : Modulo operator
+* $\boldsymbol{v} \cdot \boldsymbol{w}$ : dot (or scalar) product between vectors $\boldsymbol{v}$ and $\boldsymbol{w}$
 
 
 
