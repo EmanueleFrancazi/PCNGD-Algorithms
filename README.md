@@ -13,7 +13,7 @@ We introduce here the notation that will be employed in the following sections:
 * $\lVert \cdot \rVert$ : L2 Norm
 * $N_e$ : total number of simulation epochs
 * $N_c$ : number of classes
-* $\mathcal{D} = (\boldsymbol{xi}_i, y_i)\_{i=1}^n$ : dataset
+* $\mathcal{D} = (\boldsymbol{\xi}_i, y_i)\_{i=1}^n$ : dataset
 * $\boldsymbol{\xi}_i \in \mathbb{R}^d$ : input vector
 * $y_i \in  [0, \dots, N_c - 1]$ : label ; by convention, label " $0$ " identifies the majority class of the dataset
 * $C_l = \\{ i \mid y_i = l \\}$  : subgroup of indices belonging to class $l$
